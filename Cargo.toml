@@ -1,0 +1,31 @@
+[package]
+name = "c60"
+version = "0.0.1" # change with html_root_url in main.rs
+edition = "2021"
+authors = ["nomissbowling <nomissbowling@yahoo.co.jp>"]
+
+description = "c60 (Fullerene) on the ODE (Open Dynamics Engine) for Rust"
+keywords = ["opengl", "dynamics", "c60", "fullerene", "3D"]
+categories = ["simulation", "rendering", "science", "external-ffi-bindings"]
+license = "MIT"
+
+documentation = "https://docs.rs/c60/"
+homepage = "https://crates.io/crates/c60"
+repository = "https://github.com/nomissbowling/c60"
+
+readme = "README.md"
+
+#build = "build.rs"
+
+[dependencies]
+Fullerene = { version = "0.1" } # "0.1.6"
+
+asciiz = { version = "0.1" }
+
+ode-rs = { version = "1.0" }
+
+home = { version = "=0.5.5" } # cc(1.0.79)/bindgen(0.65.1) requires home(0.5.5)
+
+[build-dependencies]
+cc = "=1.0.79"
+bindgen = "=0.65.1"
