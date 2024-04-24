@@ -20,6 +20,24 @@ use ode_rs::ode::*;
 use std::ffi::{c_void}; // used by impl_sim_fn
 use impl_sim::{impl_sim_fn, impl_sim_derive};
 
+const APP_HELP: &str = "
+  application defined key set (this app)
+  '0': drop trimesh bunny
+  '1': drop trimesh tetra
+  '2': drop trimesh cube
+  '3': drop trimesh icosahedron
+  '4': drop tmball (tmbunny) (over calc when 3 tmbunnys at the same position)
+  '5': drop test composite
+  '6': drop test box small
+  '7': drop c60 icosahedron
+  '8': drop c60 dodecahedron
+  '9': drop c60 fullerene
+  ' ': drop apple ball
+  't': torque
+  'o': big ball info
+  'b': test mut (big ball)
+  'a': test cmd (all info)";
+
 pub struct SimApp {
   cnt: usize
 }
@@ -194,19 +212,6 @@ pub fn create_test_composite(&mut self) {
     dQuaternion::from_axis_and_angle([0.0, 0.0, 1.0], -PIq3));
 }
 
-/// create test custom
-pub fn create_test_custom(&mut self) {
-  let mitmv_cus_0 = MetaTriMesh::new(false, 0.1, unsafe { &mut *custom::tmv },
-    KRP095, 0, [1.0, 0.5, 0.5, 0.8]);
-  let (body, _, _) = self.super_mut().creator("tmv_cus_0", mitmv_cus_0);
-  self.set_pos_Q(body, [-13.0, 6.0, 2.0, 1.0], QI);
-
-  let mifvp_cus_0 = MetaConvex::new(false, 0.1, unsafe { &mut *custom::fvp },
-    KRP095, 0, [0.5, 0.5, 1.0, 0.8]);
-  let (body, _, _) = self.super_mut().creator("fvp_cus_0", mifvp_cus_0);
-  self.set_pos_Q(body, [-13.0, 8.0, 2.0, 1.0], QI);
-}
-
 /// create test tetra
 pub fn create_test_tetra(&mut self) {
   let mitmv_tetra_0 = MetaTriMesh::new(false, 0.1, unsafe { &mut *tetra::tmv },
@@ -246,24 +251,6 @@ pub fn create_test_icosahedron(&mut self) {
     KRP095, 0, [1.0, 1.0, 0.0, 0.8]);
   let (body, _, _) = self.super_mut().creator("fvp_icosahedron_0", mifvp_ih_0);
   self.set_pos_Q(body, [-7.0, -3.0, 2.0, 1.0], QI);
-}
-
-/// create test bunny
-pub fn create_test_bunny(&mut self) {
-  let q = dQuaternion::from_axis_and_angle([1.0, 0.0, 0.0], PIh);
-
-  let mitmv_bunny_0 = MetaTriMesh::new(false, 0.1,
-    unsafe { &mut *bunny::tmv },
-    KRP095, 0, [1.0, 0.0, 1.0, 0.8]);
-  let (body, _, _) = self.super_mut().creator("tmv_bunny_0", mitmv_bunny_0);
-  self.set_pos_Q(body, [-4.0, 2.0, 2.0, 1.0], q);
-
-  // unsafe { RecalcFaces(&mut *bunny::fvp as *mut convexfvp); } // old
-  let mifvp_bunny_0 = MetaConvex::new(false, 0.1,
-    unsafe { &mut *bunny::fvp },
-    KRP095, 0, [0.0, 1.0, 1.0, 0.8]);
-  let (body, _, _) = self.super_mut().creator("fvp_bunny_0", mifvp_bunny_0);
-  self.set_pos_Q(body, [-4.0, -2.0, 2.0, 1.0], q);
 }
 
 /// create test plane
@@ -348,149 +335,12 @@ pub fn create_sphere_roll(&mut self) {
   self.set_pos_Q(body, [-27.0, 0.0, 1.2, 1.0], QI);
 }
 
-/// create Rin, Rout
-pub fn create_uball(&mut self) {
-  let mi_uball = MetaComposite::new(
-    vec![
-      MetaSphere::new(1.0, 0.1, KRP001, 0, [0.6, 0.2, 0.8, 0.6]),
-      MetaSphere::new(1.0, 0.2, KRP001, 0, [0.2, 0.8, 0.6, 0.4])],
-    vec![QI, QI],
-    vec![[0.05, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
-    KRP100, 0, [1.0, 0.0, 0.0, 0.8]);
-  let (body, _, _) = self.super_mut().creator_composite("Uball", mi_uball);
-  self.set_pos_Q(body, [-27.0, 0.5, 1.2, 1.0], QI);
-}
-
-/// create Rin, Rout
-pub fn create_luball(&mut self) {
-  let mi_luball = MetaComposite::new(
-    vec![
-      MetaSphere::new(1.0, 0.1, KRP001, 0, [0.6, 0.2, 0.8, 0.6]),
-      MetaSphere::new(1.0, 0.2, KRP001, 0, [0.2, 0.8, 0.6, 0.4])],
-    vec![QI, QI],
-    vec![[0.05, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
-    KRP100, 0, [1.0, 0.0, 0.0, 0.8]);
-  let (body, _, _) = self.super_mut().creator_composite("LUball", mi_luball);
-  let q = dQuaternion::from_axis_and_angle([0.0, 0.0, 1.0], PIh);
-  self.set_pos_Q(body, [-27.0, 2.5, 1.2, 1.0], q);
-}
-
-/// create Rin, Rout
-pub fn create_ruball(&mut self) {
-  let mi_ruball = MetaComposite::new(
-    vec![
-      MetaSphere::new(1.0, 0.1, KRP001, 0, [0.6, 0.2, 0.8, 0.6]),
-      MetaSphere::new(1.0, 0.2, KRP001, 0, [0.2, 0.8, 0.6, 0.4])],
-    vec![QI, QI],
-    vec![[0.05, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
-    KRP100, 0, [1.0, 0.0, 0.0, 0.8]);
-  let (body, _, _) = self.super_mut().creator_composite("RUball", mi_ruball);
-  let q = dQuaternion::from_axis_and_angle([0.0, 0.0, 1.0], -PIh);
-  self.set_pos_Q(body, [-27.0, -0.5, 1.2, 1.0], q);
-}
-
-/// create lxyz, RL, Rout
-pub fn create_vball(&mut self) {
-  let mi_vball = MetaComposite::new(
-    vec![
-      MetaBox::new(1.0, [0.2, 0.1, 0.1, 0.0], KRP001, 0, [0.6, 0.2, 0.8, 0.6]),
-      MetaCapsule::new(1.0, 0.05, 0.2, KRP001, 0, [0.8, 0.2, 0.6, 0.6]),
-      MetaSphere::new(1.0, 0.2, KRP001, 0, [0.2, 0.8, 0.6, 0.4])],
-    vec![QI, QI, QI],
-    vec![[0.05, 0.0, 0.0, 0.0], [0.0, 0.0, 0.03, 0.0], [0.0, 0.0, 0.0, 0.0]],
-    KRP100, 0, [1.0, 0.0, 0.0, 0.8]);
-  let (body, _, _) = self.super_mut().creator_composite("Vball", mi_vball);
-  self.set_pos_Q(body, [-27.0, 1.5, 1.2, 1.0], QI);
-}
-
-/// create lxyz, RL, Rout
-pub fn create_lvball(&mut self) {
-  let mi_lvball = MetaComposite::new(
-    vec![
-      MetaBox::new(1.0, [0.2, 0.1, 0.1, 0.0], KRP001, 0, [0.6, 0.2, 0.8, 0.6]),
-      MetaCapsule::new(1.0, 0.05, 0.2, KRP001, 0, [0.8, 0.2, 0.6, 0.6]),
-      MetaSphere::new(1.0, 0.2, KRP001, 0, [0.2, 0.8, 0.6, 0.4])],
-    vec![QI, QI, QI],
-    vec![[0.05, 0.0, 0.0, 0.0], [0.0, 0.0, 0.03, 0.0], [0.0, 0.0, 0.0, 0.0]],
-    KRP100, 0, [1.0, 0.0, 0.0, 0.8]);
-  let (body, _, _) = self.super_mut().creator_composite("LVball", mi_lvball);
-  let q = dQuaternion::from_axis_and_angle([0.0, 0.0, 1.0], PIh);
-  self.set_pos_Q(body, [-27.0, 3.5, 1.2, 1.0], q);
-}
-
-/// create lxyz, RL, Rout
-pub fn create_rvball(&mut self) {
-  let mi_rvball = MetaComposite::new(
-    vec![
-      MetaBox::new(1.0, [0.2, 0.1, 0.1, 0.0], KRP001, 0, [0.6, 0.2, 0.8, 0.6]),
-      MetaCapsule::new(1.0, 0.05, 0.2, KRP001, 0, [0.8, 0.2, 0.6, 0.6]),
-      MetaSphere::new(1.0, 0.2, KRP001, 0, [0.2, 0.8, 0.6, 0.4])],
-    vec![QI, QI, QI],
-    vec![[0.05, 0.0, 0.0, 0.0], [0.0, 0.0, 0.03, 0.0], [0.0, 0.0, 0.0, 0.0]],
-    KRP100, 0, [1.0, 0.0, 0.0, 0.8]);
-  let (body, _, _) = self.super_mut().creator_composite("RVball", mi_rvball);
-  let q = dQuaternion::from_axis_and_angle([0.0, 0.0, 1.0], -PIh);
-  self.set_pos_Q(body, [-27.0, -1.5, 1.2, 1.0], q);
-}
-
-/// create 4 * lxyz, Rout (Radius of Gyration) RG High Inertia (slow)
-pub fn create_ihball(&mut self) {
-  let c: dVector4 = [1.0, 0.8, 0.2, 0.6];
-  let mi_ihball = MetaComposite::new(
-    vec![
-      MetaBox::new(100.0, [0.1, 0.1, 0.1, 0.0], KRP001, 0, c),
-      MetaBox::new(100.0, [0.1, 0.1, 0.1, 0.0], KRP001, 0, c),
-      MetaBox::new(100.0, [0.1, 0.1, 0.1, 0.0], KRP001, 0, c),
-      MetaBox::new(100.0, [0.1, 0.1, 0.1, 0.0], KRP001, 0, c),
-      MetaSphere::new(1.0, 0.2, KRP001, 0, [0.2, 1.0, 0.8, 0.4])],
-    vec![QI, QI, QI, QI, QI],
-    vec![
-      [0.09, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 0.09, 0.0],
-      [-0.09, 0.0, 0.0, 0.0],
-      [0.0, 0.0, -0.09, 0.0],
-      [0.0, 0.0, 0.0, 0.0]],
-    KRP100, 0, [1.0, 0.0, 0.0, 0.8]);
-  let (body, _, _) = self.super_mut().creator_composite("IHball", mi_ihball);
-  self.set_pos_Q(body, [-27.0, -2.5, 1.2, 1.0], QI);
-}
-
-/// create 4 * lxyz, Rout (Radius of Gyration) RG Low Inertia (fast)
-pub fn create_ilball(&mut self) {
-  let c: dVector4 = [1.0, 0.8, 0.2, 0.6];
-  let mi_ilball = MetaComposite::new(
-    vec![
-      MetaBox::new(100.0, [0.1, 0.1, 0.1, 0.0], KRP001, 0, c),
-      MetaBox::new(100.0, [0.1, 0.1, 0.1, 0.0], KRP001, 0, c),
-      MetaBox::new(100.0, [0.1, 0.1, 0.1, 0.0], KRP001, 0, c),
-      MetaBox::new(100.0, [0.1, 0.1, 0.1, 0.0], KRP001, 0, c),
-      MetaSphere::new(1.0, 0.2, KRP001, 0, [0.2, 1.0, 0.8, 0.4])],
-    vec![QI, QI, QI, QI, QI],
-    vec![
-      [0.05, 0.0, 0.0, 0.0],
-      [0.0, 0.0, 0.05, 0.0],
-      [-0.05, 0.0, 0.0, 0.0],
-      [0.0, 0.0, -0.05, 0.0],
-      [0.0, 0.0, 0.0, 0.0]],
-    KRP100, 0, [1.0, 0.0, 0.0, 0.8]);
-  let (body, _, _) = self.super_mut().creator_composite("ILball", mi_ilball);
-  self.set_pos_Q(body, [-27.0, -3.5, 1.2, 1.0], QI);
-}
-
 /// create
 pub fn create_tmtetra(&mut self) {
   let mi_tmtetra = MetaTriMesh::new(false, 1.0, unsafe { &mut *tetra::tmv },
     KRP095, 0, [0.8, 0.6, 0.2, 1.0]);
   let (body, _, _) = self.super_mut().creator("tmtetra", mi_tmtetra);
   self.set_pos_Q(body, [-15.0, -1.5, 0.5, 1.0], QI);
-}
-
-/// create
-pub fn create_tetra(&mut self) {
-  let mi_tetra = MetaConvex::new(false, 1.0, unsafe { &mut *tetra::fvp },
-    KRP095, 0, [0.4, 0.8, 0.4, 1.0]);
-  let (body, _, _) = self.super_mut().creator("tetra", mi_tetra);
-  self.set_pos_Q(body, [-15.0, 1.5, 0.5, 1.0], QI);
 }
 
 /// create
@@ -503,28 +353,11 @@ pub fn create_tmcube(&mut self) {
 }
 
 /// create
-pub fn create_cube(&mut self) {
-  let mi_cube = MetaConvex::new(false, 1.0, unsafe { &mut *cube::fvp },
-    KRP095, 0, [0.8, 0.8, 0.4, 1.0]);
-  let (body, _, _) = self.super_mut().creator("cube", mi_cube);
-  self.set_pos_Q(body, [-16.5, -1.5, 0.5, 1.0],
-    dQuaternion::from_axis_and_angle([1.0, 1.0, 1.0], PIq));
-}
-
-/// create
 pub fn create_tmicosahedron(&mut self) {
   let mi_tmih = MetaTriMesh::new(false, 1.0, unsafe { &mut *icosahedron::tmv },
     KRP095, 0, [0.2, 0.8, 0.6, 1.0]);
   let (body, _, _) = self.super_mut().creator("tmicosahedron", mi_tmih);
   self.set_pos_Q(body, [-16.5, 3.0, 0.5, 1.0], QI);
-}
-
-/// create
-pub fn create_icosahedron(&mut self) {
-  let mi_ih = MetaConvex::new(false, 1.0, unsafe { &mut *icosahedron::fvp },
-    KRP095, 0, [0.4, 0.8, 0.8, 1.0]);
-  let (body, _, _) = self.super_mut().creator("icosahedron", mi_ih);
-  self.set_pos_Q(body, [-16.5, 1.5, 0.5, 1.0], QI);
 }
 
 /// create
@@ -539,67 +372,15 @@ pub fn create_tmbunny(&mut self) {
 }
 
 /// create
-pub fn create_bunny(&mut self) {
-  let mi_bunny = MetaConvex::new(false, 1.0, unsafe { &mut *bunny::fvp },
-    KRP095, 0, [0.8, 0.4, 0.8, 1.0]);
-  let (body, _, _) = self.super_mut().creator("bunny", mi_bunny);
-  self.set_pos_Q(body, [-18.0, -1.5, 2.0, 1.0], QI);
+pub fn create_c60_icosahedron(&mut self) {
 }
 
 /// create
-pub fn create_tmcustom(&mut self) {
-  let mi_tmcustom = MetaTriMesh::new(false, 1.0, unsafe { &mut *custom::tmv },
-    KRP095, 0, [0.6, 0.2, 0.8, 1.0]);
-  let (body, _, _) = self.super_mut().creator("tmcustom", mi_tmcustom);
-  self.set_pos_Q(body, [-18.0, 3.0, 0.5, 1.0], QI);
+pub fn create_c60_dodecahedron(&mut self) {
 }
 
 /// create
-pub fn create_custom(&mut self) {
-  let mi_custom = MetaConvex::new(false, 1.0, unsafe { &mut *custom::fvp },
-    KRP095, 0, [0.2, 0.6, 0.8, 1.0]);
-  let (body, _, _) = self.super_mut().creator("custom", mi_custom);
-  self.set_pos_Q(body, [-18.0, 1.5, 0.5, 1.0], QI);
-}
-
-/// create
-pub fn create_tmbunny2(&mut self) {
-  let mi_tmbunny2 = MetaTriMesh::new(false, 1.0, unsafe { &mut *bunny::tmv },
-    KRP095, 0, [0.8, 0.2, 0.6, 1.0]);
-  let (body, _, _) = self.super_mut().creator("tmbunny2", mi_tmbunny2);
-  let m = dMatrix3::from_axis_and_angle([1.0, 0.0, 0.0], PIh);
-  let n = dMatrix3::from_axis_and_angle([0.0, 0.0, 1.0], PIh);
-  self.set_pos_R(body, [-18.0, -5.0, 2.0, 1.0], dMatrix3::multiply0_333(n, m));
-}
-
-/// create
-pub fn create_tmbunny3(&mut self) {
-  let mi_tmbunny3 = MetaTriMesh::new(false, 1.0, unsafe { &mut *bunny::tmv },
-    KRP095, 0, [0.8, 0.2, 0.6, 1.0]);
-  let (body, _, _) = self.super_mut().creator("tmbunny3", mi_tmbunny3);
-  let m = dMatrix3::from_axis_and_angle([1.0, 0.0, 0.0], PIh);
-  let n = dMatrix3::from_axis_and_angle([0.0, 1.0, 0.0], PIh);
-  self.set_pos_R(body, [-18.0, -6.0, 2.0, 1.0], dMatrix3::multiply0_333(m, n));
-}
-
-/// create
-pub fn create_bunny2(&mut self) {
-  let mi_bunny2 = MetaConvex::new(false, 1.0, unsafe { &mut *bunny::fvp },
-    KRP095, 0, [0.8, 0.4, 0.8, 1.0]);
-  let (body, _, _) = self.super_mut().creator("bunny2", mi_bunny2);
-  let m = dMatrix3::from_axis_and_angle([1.0, 0.0, 0.0], PIh);
-  let n = dMatrix3::from_axis_and_angle([0.0, 0.0, 1.0], PIh);
-  self.set_pos_R(body, [-18.0, -3.0, 2.0, 1.0], dMatrix3::multiply0_333(n, m));
-}
-
-/// create
-pub fn create_bunny3(&mut self) {
-  let mi_bunny3 = MetaConvex::new(false, 1.0, unsafe { &mut *bunny::fvp },
-    KRP095, 0, [0.8, 0.4, 0.8, 1.0]);
-  let (body, _, _) = self.super_mut().creator("bunny3", mi_bunny3);
-  let m = dMatrix3::from_axis_and_angle([1.0, 0.0, 0.0], PIh);
-  let n = dMatrix3::from_axis_and_angle([0.0, 1.0, 0.0], PIh);
-  self.set_pos_R(body, [-18.0, -4.0, 2.0, 1.0], dMatrix3::multiply0_333(m, n));
+pub fn create_c60_fullerene(&mut self) {
 }
 
 }
@@ -622,27 +403,23 @@ fn start_callback(&mut self) {
   self.create_test_capsule_frames();
   self.create_test_cylinder_frames();
   self.create_test_composite();
-  self.create_test_custom();
   self.create_test_tetra();
   self.create_test_cube();
   self.create_test_icosahedron();
-  self.create_test_bunny();
   self.create_test_plane();
 
   self.create_tmball();
   self.create_slope();
   self.create_sphere_apple();
   self.create_sphere_ball(); self.create_sphere_roll();
-  self.create_uball(); self.create_luball(); self.create_ruball();
-  self.create_vball(); self.create_lvball(); self.create_rvball();
-  self.create_ihball(); self.create_ilball();
-  self.create_tmtetra(); self.create_tetra();
-  self.create_tmcube(); self.create_cube();
-  self.create_tmicosahedron(); self.create_icosahedron();
-  self.create_tmbunny(); self.create_bunny();
-  self.create_tmcustom(); self.create_custom();
-  self.create_tmbunny2(); self.create_tmbunny3();
-  self.create_bunny2(); self.create_bunny3();
+  self.create_tmtetra();
+  self.create_tmcube();
+  self.create_tmicosahedron();
+  self.create_tmbunny();
+
+  self.create_c60_icosahedron();
+  self.create_c60_dodecahedron();
+  self.create_c60_fullerene();
 
   self.super_mut().start_callback();
 }
@@ -654,6 +431,16 @@ fn step_callback(&mut self, pause: i32) {
 
 fn command_callback(&mut self, cmd: i32) {
   match cmd as u8 as char {
+    '0' => { self.create_tmbunny(); },
+    '1' => { self.create_tmtetra(); },
+    '2' => { self.create_tmcube(); },
+    '3' => { self.create_tmicosahedron(); },
+    '4' => { self.create_tmball(); },
+    '5' => { self.create_test_composite(); },
+    '6' => { self.create_test_box_small(); },
+    '7' => { self.create_c60_icosahedron(); },
+    '8' => { self.create_c60_dodecahedron(); },
+    '9' => { self.create_c60_fullerene(); },
     ' ' => {
       let k = "apple";
       match self.super_mut().find_mut(k.to_string()) {
@@ -665,7 +452,7 @@ fn command_callback(&mut self, cmd: i32) {
     },
     't' => {
       for k in ["ball_big", "box_small",
-        "apple", "roll", "tmball", "cube", "icosahedron", "custom"] {
+        "apple", "roll", "tmball"] {
         match self.super_mut().find_mut(k.to_string()) {
           Err(e) => { println!("{}", e); },
           Ok(obg) => {
@@ -674,8 +461,8 @@ fn command_callback(&mut self, cmd: i32) {
           }
         }
       }
-      for k in ["ball", "tmbunny", "bunny", "tmtetra", "tetra",
-        "tmcube", "tmicosahedron", "tmcustom"] {
+      for k in ["ball", "tmbunny", "tmtetra",
+        "tmcube", "tmicosahedron"] {
         match self.super_mut().find_mut(k.to_string()) {
           Err(e) => { println!("{}", e); },
           Ok(obg) => {
@@ -705,6 +492,9 @@ fn command_callback(&mut self, cmd: i32) {
     },
     'a' => {
       self.objs_info(true, "cmd");
+    },
+    '?' => {
+      println!("{}", APP_HELP);
     },
     _ => {}
   }
