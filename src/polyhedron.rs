@@ -72,27 +72,44 @@ impl<F: Float> Polyhedron<F> {
   }
   /// polyhedron from PHF
   fn from_phf(&mut self, phf: &fullerene::PHF<F>) {
-    self.indices = vec![
-      3, 1, 0,
-      3, 2, 1,
-      3, 0, 2,
-      2, 0, 1];
-    self.planes = vec![
-      0.0, 0.0, -1.0, 0.2041,
-      -0.9107, 0.2440, 0.3333, 0.2041,
-      0.2440, -0.9107, 0.3333, 0.2041,
-      0.6667, 0.6667, 0.3334, 0.2042];
-    self.vtx = vec![
-      0.5577, -0.1494, -0.2041,
-      -0.1494, 0.5577, -0.2041,
-      0.0, 0.0, 0.6124,
-      -0.4082, -0.4082, -0.2041];
-    self.polygons = vec![
-      3, 3, 1, 0,
-      3, 3, 2, 1,
-      3, 3, 0, 2,
-      3, 2, 0, 1];
-    self.tmv = trimeshvi::new(&mut self.vtx, &mut self.indices);
-    self.fvp = convexfvp::new(&mut self.planes, &mut self.vtx, &mut self.polygons);
+    self.indices.clear();
+    self.planes.clear();
+    self.vtx.clear();
+    self.polygons.clear();
+    for (fi, f) in phf.iter().enumerate() {
+      let nf = f.len();
+      for _k in 0..4 { self.planes.push(0.0); } // flatten (auto set later)
+      for (vi, v) in f.iter().enumerate() {
+        let nv = v.len();
+        self.polygons.push(nv as u32); // now all triangle
+        for (ii, (p, uv)) in v.iter().enumerate() {
+          let p = fullerene::f_to_f64(p);
+          let _uv = fullerene::f_to_f64(uv);
+          for k in 0..3 { self.vtx.push(p[k]); } // flatten
+          let j = (fi * nf + vi) * nv + ii;
+          self.indices.push(j as dTriIndex);
+          self.polygons.push(j as u32); // now all triangle
+        }
+      }
+    }
+/*
+    let nfaces = phf.len();
+    self.planes = (0..nfaces).into_iter().flat_map(|_f|
+      vec![0.0, 0.0, 0.0, 0.0]).collect(); // auto set later
+*/
+    println!("{} indices\n{:?}", self.indices.len(), self.indices);
+    println!("{} planes\n{:?}", self.planes.len(), self.planes);
+//    println!("{} vtx\n{:?}", self.vtx.len(), self.vtx);
+    println!("{} polygons\n{:?}", self.polygons.len(), self.polygons);
+    self.tmv = self.to_trimeshvi();
+    self.fvp = self.to_convexfvp();
+  }
+  /// to trimeshvi
+  fn to_trimeshvi(&mut self) -> trimeshvi {
+    trimeshvi::new(&mut self.vtx, &mut self.indices)
+  }
+  /// to convexfvp
+  fn to_convexfvp(&mut self) -> convexfvp {
+    convexfvp::new(&mut self.planes, &mut self.vtx, &mut self.polygons)
   }
 }

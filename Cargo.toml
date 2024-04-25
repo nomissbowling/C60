@@ -1,6 +1,6 @@
 [package]
 name = "c60"
-version = "0.0.3" # change with html_root_url in main.rs
+version = "0.0.4" # change with html_root_url in main.rs
 edition = "2021"
 authors = ["nomissbowling <nomissbowling@yahoo.co.jp>"]
 

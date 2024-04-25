@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/c60/0.0.3")]
+#![doc(html_root_url = "https://docs.rs/c60/0.0.4")]
 /*
   cc-rs https://crates.io/crates/cc
   bindgen https://crates.io/crates/bindgen
@@ -380,7 +380,7 @@ pub fn create_tmbunny(&mut self) {
 
 /// create c60 icosahedron
 pub fn create_c60_icosahedron(&mut self) {
-  any_pinned_with_bg_mut!(Icosahedron<f32>, 0, |icosa| {
+  any_pinned_with_bg_mut!(Icosahedron<f64>, 0, |icosa| {
     let mi_tm_icosa = MetaTriMesh::new(false, 1.0, &mut icosa.ph.tmv,
       KRP095, 0, [0.8, 0.6, 0.2, 1.0]);
     let (body, _, _) = self.super_mut().creator("icosahedron", mi_tm_icosa);
@@ -390,7 +390,7 @@ pub fn create_c60_icosahedron(&mut self) {
 
 /// create c60 dodecahedron
 pub fn create_c60_dodecahedron(&mut self) {
-  any_pinned_with_bg_mut!(Dodecahedron<f32>, 1, |dodeca| {
+  any_pinned_with_bg_mut!(Dodecahedron<f64>, 1, |dodeca| {
     let mi_tm_dodeca = MetaTriMesh::new(false, 1.0, &mut dodeca.ph.tmv,
       KRP095, 0, [0.8, 0.6, 0.2, 1.0]);
     let (body, _, _) = self.super_mut().creator("dodecahedron", mi_tm_dodeca);
@@ -400,7 +400,7 @@ pub fn create_c60_dodecahedron(&mut self) {
 
 /// create c60 dodecahedron center
 pub fn create_c60_dodecahedron_center(&mut self) {
-  any_pinned_with_bg_mut!(DodecahedronCenter<f32>, 1, |dodecac| {
+  any_pinned_with_bg_mut!(DodecahedronCenter<f64>, 2, |dodecac| {
     let mi_tm_dodecac = MetaTriMesh::new(false, 1.0, &mut dodecac.ph.tmv,
       KRP095, 0, [0.8, 0.6, 0.2, 1.0]);
     let (body, _, _) = self.super_mut().creator("dodecahedron center", mi_tm_dodecac);
@@ -410,7 +410,7 @@ pub fn create_c60_dodecahedron_center(&mut self) {
 
 /// create c60 fullerene
 pub fn create_c60_fullerene(&mut self) {
-  any_pinned_with_bg_mut!(C60<f32>, 2, |c60| {
+  any_pinned_with_bg_mut!(C60<f64>, 2, |c60| {
     let mi_tm_c60 = MetaTriMesh::new(false, 1.0, &mut c60.ph.tmv,
       KRP095, 0, [0.8, 0.6, 0.2, 1.0]);
     let (body, _, _) = self.super_mut().creator("c60 fullerene", mi_tm_c60);
@@ -420,7 +420,7 @@ pub fn create_c60_fullerene(&mut self) {
 
 /// create c60 fullerene center
 pub fn create_c60_fullerene_center(&mut self) {
-  any_pinned_with_bg_mut!(C60Center<f32>, 2, |c60c| {
+  any_pinned_with_bg_mut!(C60Center<f64>, 2, |c60c| {
     let mi_tm_c60c = MetaTriMesh::new(false, 1.0, &mut c60c.ph.tmv,
       KRP095, 0, [0.8, 0.6, 0.2, 1.0]);
     let (body, _, _) = self.super_mut().creator("c60 fullerene center", mi_tm_c60c);
@@ -467,24 +467,24 @@ fn start_callback(&mut self) {
   self.create_tmbunny();
 
   let tf = true; // true: on the one texture, false: texture each face
-  any_pinned_with_bg_mut!(Icosahedron<f32>, 0, |icosa| {
-    icosa.setup(1.0, tf);
+  any_pinned_with_bg_mut!(Icosahedron<f64>, 0, |icosa| {
+    icosa.setup(0.5, tf);
   });
   self.create_c60_icosahedron();
-  any_pinned_with_bg_mut!(Dodecahedron<f32>, 1, |dodeca| {
-    dodeca.setup(1.0, tf);
+  any_pinned_with_bg_mut!(Dodecahedron<f64>, 1, |dodeca| {
+    dodeca.setup(0.5, tf);
   });
   self.create_c60_dodecahedron();
-  any_pinned_with_bg_mut!(DodecahedronCenter<f32>, 2, |dodecac| {
-    dodecac.setup(1.0, tf);
+  any_pinned_with_bg_mut!(DodecahedronCenter<f64>, 2, |dodecac| {
+    dodecac.setup(0.5, tf);
   });
   self.create_c60_dodecahedron_center();
-  any_pinned_with_bg_mut!(C60<f32>, 3, |c60| {
-    c60.setup(1.0, tf);
+  any_pinned_with_bg_mut!(C60<f64>, 3, |c60| {
+    c60.setup(0.5, tf);
   });
   self.create_c60_fullerene();
-  any_pinned_with_bg_mut!(C60Center<f32>, 4, |c60c| {
-    c60c.setup(1.0, tf);
+  any_pinned_with_bg_mut!(C60Center<f64>, 4, |c60c| {
+    c60c.setup(0.5, tf);
   });
   self.create_c60_fullerene_center();
 
@@ -572,11 +572,11 @@ fn command_callback(&mut self, cmd: i32) {
 
 fn main() {
   any_pinned_init_slots!(8);
-  any_pinned_set_bg_mut!(Icosahedron<f32>, 0);
-  any_pinned_set_bg_mut!(Dodecahedron<f32>, 1);
-  any_pinned_set_bg_mut!(DodecahedronCenter<f32>, 2);
-  any_pinned_set_bg_mut!(C60<f32>, 3);
-  any_pinned_set_bg_mut!(C60Center<f32>, 4);
+  any_pinned_set_bg_mut!(Icosahedron<f64>, 0);
+  any_pinned_set_bg_mut!(Dodecahedron<f64>, 1);
+  any_pinned_set_bg_mut!(DodecahedronCenter<f64>, 2);
+  any_pinned_set_bg_mut!(C60<f64>, 3);
+  any_pinned_set_bg_mut!(C60Center<f64>, 4);
 
   ODE::open(Drawstuff::new());
   ODE::sim_loop(
