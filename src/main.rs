@@ -410,7 +410,7 @@ pub fn create_c60_dodecahedron_center(&mut self) {
 
 /// create c60 fullerene
 pub fn create_c60_fullerene(&mut self) {
-  any_pinned_with_bg_mut!(C60<f64>, 2, |c60| {
+  any_pinned_with_bg_mut!(C60<f64>, 3, |c60| {
     let mi_tm_c60 = MetaTriMesh::new(false, 1.0, &mut c60.ph.tmv,
       KRP095, 0, [0.8, 0.6, 0.2, 1.0]);
     let (body, _, _) = self.super_mut().creator("c60 fullerene", mi_tm_c60);
@@ -420,7 +420,7 @@ pub fn create_c60_fullerene(&mut self) {
 
 /// create c60 fullerene center
 pub fn create_c60_fullerene_center(&mut self) {
-  any_pinned_with_bg_mut!(C60Center<f64>, 2, |c60c| {
+  any_pinned_with_bg_mut!(C60Center<f64>, 4, |c60c| {
     let mi_tm_c60c = MetaTriMesh::new(false, 1.0, &mut c60c.ph.tmv,
       KRP095, 0, [0.8, 0.6, 0.2, 1.0]);
     let (body, _, _) = self.super_mut().creator("c60 fullerene center", mi_tm_c60c);

@@ -76,8 +76,8 @@ impl<F: Float> Polyhedron<F> {
     self.planes.clear();
     self.vtx.clear();
     self.polygons.clear();
-    for (fi, f) in phf.iter().enumerate() {
-      let nf = f.len();
+    let mut cf = 0; // count faces (not use fi * f.len()) c60 contains 5 and 6
+    for (_fi, f) in phf.iter().enumerate() {
       for _k in 0..4 { self.planes.push(0.0); } // flatten (auto set later)
       for (vi, v) in f.iter().enumerate() {
         let nv = v.len();
@@ -86,21 +86,24 @@ impl<F: Float> Polyhedron<F> {
           let p = fullerene::f_to_f64(p);
           let _uv = fullerene::f_to_f64(uv);
           for k in 0..3 { self.vtx.push(p[k]); } // flatten
-          let j = (fi * nf + vi) * nv + ii;
+          let j = (cf + vi) * nv + ii;
           self.indices.push(j as dTriIndex);
           self.polygons.push(j as u32); // now all triangle
         }
       }
+      cf += f.len();
     }
 /*
     let nfaces = phf.len();
     self.planes = (0..nfaces).into_iter().flat_map(|_f|
       vec![0.0, 0.0, 0.0, 0.0]).collect(); // auto set later
 */
+/*
     println!("{} indices\n{:?}", self.indices.len(), self.indices);
-    println!("{} planes\n{:?}", self.planes.len(), self.planes);
-//    println!("{} vtx\n{:?}", self.vtx.len(), self.vtx);
+//    println!("{} planes\n{:?}", self.planes.len() / 4, self.planes);
+//    println!("{} vtx\n{:?}", self.vtx.len() / 3, self.vtx);
     println!("{} polygons\n{:?}", self.polygons.len(), self.polygons);
+*/
     self.tmv = self.to_trimeshvi();
     self.fvp = self.to_convexfvp();
   }
