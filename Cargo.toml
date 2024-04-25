@@ -1,6 +1,6 @@
 [package]
 name = "c60"
-version = "0.0.1" # change with html_root_url in main.rs
+version = "0.0.2" # change with html_root_url in main.rs
 edition = "2021"
 authors = ["nomissbowling <nomissbowling@yahoo.co.jp>"]
 
@@ -21,6 +21,10 @@ readme = "README.md"
 Fullerene = { version = "0.1" } # "0.1.6"
 
 asciiz = { version = "0.1" }
+
+anyslot = { version = "0.1" }
+
+num = { version = "0.4" } # "0.4.1"
 
 ode-rs = { version = "1.0" }
 

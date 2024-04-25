@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/c60/0.0.1")]
+#![doc(html_root_url = "https://docs.rs/c60/0.0.2")]
 /*
   cc-rs https://crates.io/crates/cc
   bindgen https://crates.io/crates/bindgen
@@ -12,6 +12,11 @@
     libgcc_s_seh-1.dll
     libwinpthread-1.dll
 */
+
+pub mod polyhedron;
+use polyhedron::{Icosahedron, Dodecahedron, C60};
+
+use anyslot::anyslot::*;
 
 use ode_rs::ds::Drawstuff;
 use ode_rs::colors::*;
@@ -371,16 +376,34 @@ pub fn create_tmbunny(&mut self) {
   // to (-0.109884, 0.304591, 1.217693)
 }
 
-/// create
+/// create c60 icosahedron
 pub fn create_c60_icosahedron(&mut self) {
+  any_pinned_with_bg_mut!(Icosahedron<f32>, 0, |icosa| {
+    let mi_tm_icosa = MetaTriMesh::new(false, 1.0, &mut icosa.tmv,
+      KRP095, 0, [0.8, 0.6, 0.2, 1.0]);
+    let (body, _, _) = self.super_mut().creator("icosahedron", mi_tm_icosa);
+    self.set_pos_Q(body, [-4.0, -3.0, 2.0, 1.0], QI);
+  });
 }
 
-/// create
+/// create c60 dodecahedron
 pub fn create_c60_dodecahedron(&mut self) {
+  any_pinned_with_bg_mut!(Dodecahedron<f32>, 1, |dodeca| {
+    let mi_tm_dodeca = MetaTriMesh::new(false, 1.0, &mut dodeca.tmv,
+      KRP095, 0, [0.8, 0.6, 0.2, 1.0]);
+    let (body, _, _) = self.super_mut().creator("dodecahedron", mi_tm_dodeca);
+    self.set_pos_Q(body, [-4.0, 0.0, 2.0, 1.0], QI);
+  });
 }
 
-/// create
+/// create c60 fullerene
 pub fn create_c60_fullerene(&mut self) {
+  any_pinned_with_bg_mut!(C60<f32>, 2, |c60| {
+    let mi_tm_c60 = MetaTriMesh::new(false, 1.0, &mut c60.tmv,
+      KRP095, 0, [0.8, 0.6, 0.2, 1.0]);
+    let (body, _, _) = self.super_mut().creator("c60 fullerene", mi_tm_c60);
+    self.set_pos_Q(body, [-4.0, 3.0, 2.0, 1.0], QI);
+  });
 }
 
 }
@@ -390,6 +413,10 @@ impl Sim for SimApp {
 
 fn draw_objects(&mut self) {
   self.objs_info(false, "draw"); // twice (after step)
+/*
+  let ds = ODE::ds_as_ref();
+  ds.SetDrawMode(1); // test always wireframe
+*/
   self.super_mut().draw_objects();
 }
 
@@ -417,8 +444,11 @@ fn start_callback(&mut self) {
   self.create_tmicosahedron();
   self.create_tmbunny();
 
+  any_pinned_with_bg_mut!(Icosahedron<f32>, 0, |bg| { bg.setup(); });
   self.create_c60_icosahedron();
+  any_pinned_with_bg_mut!(Dodecahedron<f32>, 1, |bg| { bg.setup(); });
   self.create_c60_dodecahedron();
+  any_pinned_with_bg_mut!(C60<f32>, 2, |bg| { bg.setup(); });
   self.create_c60_fullerene();
 
   self.super_mut().start_callback();
@@ -504,10 +534,17 @@ fn command_callback(&mut self, cmd: i32) {
 } // impl Sim for SimApp
 
 fn main() {
+  any_pinned_init_slots!(8);
+  any_pinned_set_bg_mut!(Icosahedron<f32>, 0);
+  any_pinned_set_bg_mut!(Dodecahedron<f32>, 1);
+  any_pinned_set_bg_mut!(C60<f32>, 2);
+
   ODE::open(Drawstuff::new());
   ODE::sim_loop(
     640, 480, // 800, 600,
     Some(Box::new(SimApp{cnt: 0})),
     b"./resources");
   ODE::close();
+
+  any_pinned_dispose_slots!();
 }
