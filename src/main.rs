@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/c60/0.0.5")]
+#![doc(html_root_url = "https://docs.rs/c60/0.0.6")]
 /*
   cc-rs https://crates.io/crates/cc
   bindgen https://crates.io/crates/bindgen
@@ -13,10 +13,10 @@
     libwinpthread-1.dll
 */
 
-pub mod polyhedron;
-use polyhedron::Icosahedron;
-use polyhedron::{Dodecahedron, DodecahedronCenter};
-use polyhedron::{C60, C60Center};
+use trimesh::polyhedron::{
+  Icosahedron,
+  {Dodecahedron, DodecahedronCenter},
+  {C60, C60Center}};
 
 use anyslot::anyslot::*;
 
