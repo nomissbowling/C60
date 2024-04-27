@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/c60/0.0.6")]
+#![doc(html_root_url = "https://docs.rs/c60/0.0.7")]
 /*
   cc-rs https://crates.io/crates/cc
   bindgen https://crates.io/crates/bindgen
@@ -383,7 +383,7 @@ pub fn create_c60_icosahedron(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(Icosahedron<f64>, 0 + i, |icosa| {
       let mi_tm_icosa = MetaTriMesh::new(false, 1.0, &mut icosa.ph.tmv,
-        KRP095, 0, [0.8, 0.6, 0.2, 1.0]);
+        KRP095, 0, [0.8, 0.6, 0.2, 0.8]);
       let s = format!("c60 icosahedron {}", i);
       let (body, _, _) = self.super_mut().creator(s.as_str(), mi_tm_icosa);
       self.set_pos_Q(body, [-4.0 + 2.0 * i as f64, 0.0, 2.0, 1.0], QI);
@@ -396,7 +396,7 @@ pub fn create_c60_dodecahedron(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(Dodecahedron<f64>, 2 + i, |dodeca| {
       let mi_tm_dodeca = MetaTriMesh::new(false, 1.0, &mut dodeca.ph.tmv,
-        KRP095, 0, [0.8, 0.6, 0.2, 1.0]);
+        KRP095, 0, [0.8, 0.6, 0.2, 0.8]);
       let s = format!("c60 dodecahedron {}", i);
       let (body, _, _) = self.super_mut().creator(s.as_str(), mi_tm_dodeca);
       self.set_pos_Q(body, [-4.0 + 2.0 * i as f64, -4.0, 2.0, 1.0], QI);
@@ -409,7 +409,7 @@ pub fn create_c60_dodecahedron_center(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(DodecahedronCenter<f64>, 4 + i, |dodecac| {
       let mi_tm_dodecac = MetaTriMesh::new(false, 1.0, &mut dodecac.ph.tmv,
-        KRP095, 0, [0.8, 0.6, 0.2, 1.0]);
+        KRP095, 0, [0.8, 0.6, 0.2, 0.8]);
       let s = format!("c60 dodecahedron center {}", i);
       let (body, _, _) = self.super_mut().creator(s.as_str(), mi_tm_dodecac);
       self.set_pos_Q(body, [-4.0 + 2.0 * i as f64, -2.0, 2.0, 1.0], QI);
@@ -422,7 +422,7 @@ pub fn create_c60_fullerene(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(C60<f64>, 6 + i, |c60| {
       let mi_tm_c60 = MetaTriMesh::new(false, 1.0, &mut c60.ph.tmv,
-        KRP095, 0, [0.8, 0.6, 0.2, 1.0]);
+        KRP095, 0, [0.8, 0.6, 0.2, 0.8]);
       let s = format!("c60 fullerene {}", i);
       let (body, _, _) = self.super_mut().creator(s.as_str(), mi_tm_c60);
       self.set_pos_Q(body, [-4.0 + 2.0 * i as f64, 4.0, 2.0, 1.0], QI);
@@ -435,7 +435,7 @@ pub fn create_c60_fullerene_center(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(C60Center<f64>, 8 + i, |c60c| {
       let mi_tm_c60c = MetaTriMesh::new(false, 1.0, &mut c60c.ph.tmv,
-        KRP095, 0, [0.8, 0.6, 0.2, 1.0]);
+        KRP095, 0, [0.8, 0.6, 0.2, 0.8]);
       let s = format!("c60 fullerene center {}", i);
       let (body, _, _) = self.super_mut().creator(s.as_str(), mi_tm_c60c);
       self.set_pos_Q(body, [-4.0 + 2.0 * i as f64, 2.0, 2.0, 1.0], QI);

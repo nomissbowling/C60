@@ -1,6 +1,6 @@
 [package]
 name = "c60"
-version = "0.0.6" # change with html_root_url in main.rs
+version = "0.0.7" # change with html_root_url in main.rs
 edition = "2021"
 authors = ["nomissbowling <nomissbowling@yahoo.co.jp>"]
 
@@ -18,9 +18,9 @@ readme = "README.md"
 #build = "build.rs"
 
 [dependencies]
-trimesh = { version = "0.1" }
+trimesh = { version = "0.2" }
 
-Fullerene = { version = "0.1" } # "0.1.6"
+Fullerene = { version = "0.2" } # "0.2.2"
 
 anyslot = { version = "0.1" }
 
@@ -35,3 +35,6 @@ home = { version = "=0.5.5" } # cc(1.0.79)/bindgen(0.65.1) requires home(0.5.5)
 [build-dependencies]
 cc = "=1.0.79"
 bindgen = "=0.65.1"
+
+[package.metadata.docs.rs]
+rustc-args = ["--cfg", "docsrs"]
