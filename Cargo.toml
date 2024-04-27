@@ -1,6 +1,6 @@
 [package]
 name = "c60"
-version = "0.0.7" # change with html_root_url in main.rs
+version = "0.2.3" # change with html_root_url in main.rs
 edition = "2021"
 authors = ["nomissbowling <nomissbowling@yahoo.co.jp>"]
 
@@ -18,9 +18,9 @@ readme = "README.md"
 #build = "build.rs"
 
 [dependencies]
-trimesh = { version = "0.2" }
+trimesh = { version = "0.2" } # "0.2.3"
 
-Fullerene = { version = "0.2" } # "0.2.2"
+Fullerene = { version = "0.2" } # "0.2.3"
 
 anyslot = { version = "0.1" }
 
