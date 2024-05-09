@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/c60/0.3.0")]
+#![doc(html_root_url = "https://docs.rs/c60/0.3.1")]
 /*
   cc-rs https://crates.io/crates/cc
   bindgen https://crates.io/crates/bindgen
@@ -14,9 +14,14 @@
 */
 
 use trimesh::polyhedron::{
+  self, tetra::*, cube::*, octa::*,
+  sphere::*, cylinder::*, capsule::*, cone::*,
+  torus::*, pipe::*, // polyhedron::pin
+  revolution::*,
   Icosahedron,
   {Dodecahedron, DodecahedronCenter},
   {C60, C60Center}};
+use trimesh::tmm::*;
 
 use anyslot::anyslot::*;
 
@@ -39,13 +44,29 @@ const APP_HELP: &str = "
   '7': drop c60 icosahedron
   '8': drop c60 dodecahedron
   '9': drop c60 fullerene
+  '@': drop polyhedron (sequence)
   ' ': drop apple ball
   't': torque
   'o': big ball info
   'b': test mut (big ball)
   'a': test cmd (all info)";
 
+#[macro_export]
+macro_rules! create_tm {
+  ($slf: expr, $tm: ident, $hm: ident, $k: expr) => {{
+    let tmo = tmg!($tm, $hm, $k);
+    let mi_tm = MetaTriMesh::new(false, 1.0, &mut tmo.ph.tmv,
+      KRP095, 0, [0.6, 0.2, 0.8, 0.8]);
+    let s = format!("{}_{}", stringify!($hm), $k);
+    let (body, _, _) = $slf.super_mut().creator(s.as_str(), mi_tm);
+    $slf.set_pos_Q(body, [-2.0, 0.0, 6.0, 1.0], QI);
+    s
+  }}
+}
+
 pub struct SimApp {
+  n: usize,
+  u: usize,
   cnt: usize
 }
 
@@ -381,7 +402,8 @@ pub fn create_tmbunny(&mut self) {
 /// create c60 icosahedron
 pub fn create_c60_icosahedron(&mut self) {
   for i in 0..2 {
-    any_pinned_with_bg_mut!(Icosahedron<f64>, 0 + i, |icosa| {
+    any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
+      let icosa = tmg!(tm, icosahedron, 0);
       let mi_tm_icosa = MetaTriMesh::new(false, 1.0, &mut icosa.ph.tmv,
         KRP095, 0, [0.8, 0.6, 0.2, 0.8]);
       let s = format!("c60 icosahedron {}", i);
@@ -394,7 +416,8 @@ pub fn create_c60_icosahedron(&mut self) {
 /// create c60 dodecahedron
 pub fn create_c60_dodecahedron(&mut self) {
   for i in 0..2 {
-    any_pinned_with_bg_mut!(Dodecahedron<f64>, 2 + i, |dodeca| {
+    any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
+      let dodeca = tmg!(tm, dodecahedron, i);
       let mi_tm_dodeca = MetaTriMesh::new(false, 1.0, &mut dodeca.ph.tmv,
         KRP095, 0, [0.8, 0.6, 0.2, 0.8]);
       let s = format!("c60 dodecahedron {}", i);
@@ -407,7 +430,8 @@ pub fn create_c60_dodecahedron(&mut self) {
 /// create c60 dodecahedron center
 pub fn create_c60_dodecahedron_center(&mut self) {
   for i in 0..2 {
-    any_pinned_with_bg_mut!(DodecahedronCenter<f64>, 4 + i, |dodecac| {
+    any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
+      let dodecac = tmg!(tm, dodecahedron_center, i);
       let mi_tm_dodecac = MetaTriMesh::new(false, 1.0, &mut dodecac.ph.tmv,
         KRP095, 0, [0.8, 0.6, 0.2, 0.8]);
       let s = format!("c60 dodecahedron center {}", i);
@@ -420,7 +444,8 @@ pub fn create_c60_dodecahedron_center(&mut self) {
 /// create c60 fullerene
 pub fn create_c60_fullerene(&mut self) {
   for i in 0..2 {
-    any_pinned_with_bg_mut!(C60<f64>, 6 + i, |c60| {
+    any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
+      let c60 = tmg!(tm, c60, i);
       let mi_tm_c60 = MetaTriMesh::new(false, 1.0, &mut c60.ph.tmv,
         KRP095, 0, [0.8, 0.6, 0.2, 0.8]);
       let s = format!("c60 fullerene {}", i);
@@ -433,7 +458,8 @@ pub fn create_c60_fullerene(&mut self) {
 /// create c60 fullerene center
 pub fn create_c60_fullerene_center(&mut self) {
   for i in 0..2 {
-    any_pinned_with_bg_mut!(C60Center<f64>, 8 + i, |c60c| {
+    any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
+      let c60c = tmg!(tm, c60_center, i);
       let mi_tm_c60c = MetaTriMesh::new(false, 1.0, &mut c60c.ph.tmv,
         KRP095, 0, [0.8, 0.6, 0.2, 0.8]);
       let s = format!("c60 fullerene center {}", i);
@@ -441,6 +467,43 @@ pub fn create_c60_fullerene_center(&mut self) {
       self.set_pos_Q(body, [-4.0 + 2.0 * i as f64, 2.0, 2.0, 1.0], QI);
     });
   }
+}
+
+/// create polyhedron
+pub fn create_polyhedron(&mut self) {
+  any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
+    let k = match self.u {
+    0 => create_tm!(self, tm, tetra, 0),
+    1 => create_tm!(self, tm, cube, 0),
+    2 => create_tm!(self, tm, cube_center, 0),
+    3 => create_tm!(self, tm, octa, 0),
+    4 => create_tm!(self, tm, r_sphere, 0),
+    5 => create_tm!(self, tm, cylinder, 0),
+    6 => create_tm!(self, tm, capsule, 0),
+    7 => create_tm!(self, tm, cone, 0),
+    8 => create_tm!(self, tm, torus, 0),
+    9 => create_tm!(self, tm, r_torus, 0),
+    10 => create_tm!(self, tm, ring, 0),
+    11 => create_tm!(self, tm, tube, 0),
+    12 => create_tm!(self, tm, half_pipe, 0),
+    13 => create_tm!(self, tm, pin, 0),
+    14 => create_tm!(self, tm, revolution, 0),
+    15 => create_tm!(self, tm, revolution, 1),
+    16 => create_tm!(self, tm, icosahedron, 0),
+    17 => create_tm!(self, tm, icosahedron, 1),
+    18 => create_tm!(self, tm, dodecahedron, 0),
+    19 => create_tm!(self, tm, dodecahedron, 1),
+    20 => create_tm!(self, tm, dodecahedron_center, 0),
+    21 => create_tm!(self, tm, dodecahedron_center, 1),
+    22 => create_tm!(self, tm, c60, 0),
+    23 => create_tm!(self, tm, c60, 1),
+    24 => create_tm!(self, tm, c60_center, 0),
+    25 => create_tm!(self, tm, c60_center, 1),
+    _ => "nothing".to_string()
+    };
+    println!("polyhedron: {}", k);
+  });
+  self.u = (self.u + 1) % self.n;
 }
 
 }
@@ -481,29 +544,45 @@ fn start_callback(&mut self) {
   self.create_tmicosahedron();
   self.create_tmbunny();
 
-  for i in 0..2 {
-    let tf = i == 0; // true: on the one texture, false: texture each face
-    any_pinned_with_bg_mut!(Icosahedron<f64>, 0 + i, |icosa| {
-      icosa.setup(0.2, tf);
-    });
-    any_pinned_with_bg_mut!(Dodecahedron<f64>, 2 + i, |dodeca| {
-      dodeca.setup(0.2, tf);
-    });
-    any_pinned_with_bg_mut!(DodecahedronCenter<f64>, 4 + i, |dodecac| {
-      dodecac.setup(0.2, tf);
-    });
-    any_pinned_with_bg_mut!(C60<f64>, 6 + i, |c60| {
-      c60.setup(0.2, tf);
-    });
-    any_pinned_with_bg_mut!(C60Center<f64>, 8 + i, |c60c| {
-      c60c.setup(0.2, tf);
-    });
-  }
+  any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
+    let r = 0.2;
+    let tf = false;
+    tms!(tm, tetra, Tetra::<f64>, 0).setup(1.0, tf);
+    tms!(tm, cube, Cube::<f64>, 0).setup(r, tf);
+    tms!(tm, cube_center, CubeCenter::<f64>, 0).setup(r, tf);
+    tms!(tm, octa, Octa::<f64>, 0).setup(1.0, tf);
+    tms!(tm, r_sphere, RSphere::<f64>, 0).setup(r, 6, tf);
+    tms!(tm, cylinder, Cylinder::<f64>, 0).setup(r, 2.0, 6, tf);
+    tms!(tm, capsule, Capsule::<f64>, 0).setup(r, 2.0, 6, tf);
+    tms!(tm, cone, Cone::<f64>, 0).setup(r, 2.0, 6, tf);
+    tms!(tm, torus, Torus::<f64>, 0).setup(2.0, 0.5, 6, 6, tf);
+    tms!(tm, r_torus, RTorus::<f64>, 0).setup(2.0, 0.5, 12, 6, tf);
+    tms!(tm, ring, Ring::<f64>, 0).setup(2.0, 0.1, 0.4, 12, 6, tf);
+    tms!(tm, tube, Tube::<f64>, 0).setup(3.0, 2.8, 4.0, 6, tf);
+    tms!(tm, half_pipe, HalfPipe::<f64>, 0)
+    .setup(3.141592654, 3.0, 2.8, 4.0, 6, tf);
+    tms!(tm, pin, polyhedron::pin::Pin::<f64>, 0).setup(0.1, 8, 6, tf);
+    tms!(tm, revolution, Revolution::<f64>, 0)
+    .setup(1.0, 2, 6, (true, true), |n, m| {
+      (n as f64 / (m - 1) as f64, 1.0) }, tf);
+    tms!(tm, revolution, Revolution::<f64>, 1)
+    .setup_from_tbl(1.0, 2, 6, (true, true), &vec![
+      (0.0, 1.0), (0.2, 1.0), (0.4, 1.0), (0.6, 1.0), (0.8, 1.0)], tf);
+    for i in 0..2 {
+      let tf = i == 0; // true: on the one texture, false: texture each face
+      tms!(tm, icosahedron, Icosahedron::<f64>, i).setup(r, tf);
+      tms!(tm, dodecahedron, Dodecahedron::<f64>, i).setup(r, tf);
+      tms!(tm, dodecahedron_center, DodecahedronCenter::<f64>, i).setup(r, tf);
+      tms!(tm, c60, C60::<f64>, i).setup(r, tf);
+      tms!(tm, c60_center, C60Center::<f64>, i).setup(r, tf);
+    }
+  });
   self.create_c60_icosahedron();
   self.create_c60_dodecahedron();
   self.create_c60_dodecahedron_center();
   self.create_c60_fullerene();
   self.create_c60_fullerene_center();
+  self.create_polyhedron();
 
   self.super_mut().start_callback();
 }
@@ -530,6 +609,9 @@ fn command_callback(&mut self, cmd: i32) {
     '9' => {
       self.create_c60_fullerene();
       self.create_c60_fullerene_center();
+    },
+    '@' => {
+      self.create_polyhedron();
     },
     ' ' => {
       let k = "apple";
@@ -595,21 +677,12 @@ fn command_callback(&mut self, cmd: i32) {
 
 fn main() {
   any_pinned_init_slots!(16);
-  any_pinned_set_bg_mut!(Icosahedron<f64>, 0);
-  any_pinned_set_bg_mut!(Icosahedron<f64>, 1);
-  any_pinned_set_bg_mut!(Dodecahedron<f64>, 2);
-  any_pinned_set_bg_mut!(Dodecahedron<f64>, 3);
-  any_pinned_set_bg_mut!(DodecahedronCenter<f64>, 4);
-  any_pinned_set_bg_mut!(DodecahedronCenter<f64>, 5);
-  any_pinned_set_bg_mut!(C60<f64>, 6);
-  any_pinned_set_bg_mut!(C60<f64>, 7);
-  any_pinned_set_bg_mut!(C60Center<f64>, 8);
-  any_pinned_set_bg_mut!(C60Center<f64>, 9);
+  any_pinned_set_bg_mut!(TriMeshManager<f64>, 0); // polyhedron sequence
 
   ODE::open(Drawstuff::new());
   ODE::sim_loop(
     640, 480, // 800, 600,
-    Some(Box::new(SimApp{cnt: 0})),
+    Some(Box::new(SimApp{n: 26, u: 0, cnt: 0})),
     b"./resources");
   ODE::close();
 
