@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/c60/0.3.1")]
+#![doc(html_root_url = "https://docs.rs/c60/0.3.2")]
 /*
   cc-rs https://crates.io/crates/cc
   bindgen https://crates.io/crates/bindgen
@@ -31,6 +31,7 @@ use ode_rs::ode::*;
 
 use std::ffi::{c_void}; // used by impl_sim_fn
 use impl_sim::{impl_sim_fn, impl_sim_derive};
+use std::time;
 
 const APP_HELP: &str = "
   application defined key set (this app)
@@ -53,18 +54,19 @@ const APP_HELP: &str = "
 
 #[macro_export]
 macro_rules! create_tm {
-  ($slf: expr, $tm: ident, $hm: ident, $k: expr) => {{
-    let tmo = tmg!($tm, $hm, $k);
-    let mi_tm = MetaTriMesh::new(false, 1.0, &mut tmo.ph.tmv,
-      KRP095, 0, [0.6, 0.2, 0.8, 0.8]);
-    let s = format!("{}_{}", stringify!($hm), $k);
-    let (body, _, _) = $slf.super_mut().creator(s.as_str(), mi_tm);
-    $slf.set_pos_Q(body, [-2.0, 0.0, 6.0, 1.0], QI);
-    s
+  ($slf: expr, $col: expr, $pos: expr, $q: expr,
+    $tm: ident, $hm: ident, $k: expr) => {{
+    let t = tmg!($tm, $hm, $k);
+    let mi_tm = MetaTriMesh::new(false, 1.0, &mut t.1.ph.tmv, KRP095, 0, $col);
+    let k = format!("{}_{:016x}", t.0, $slf.t.elapsed().as_nanos());
+    let (body, _, _) = $slf.super_mut().creator(k.as_str(), mi_tm);
+    $slf.set_pos_Q(body, $pos, $q);
+    k.clone()
   }}
 }
 
 pub struct SimApp {
+  t: time::Instant,
   n: usize,
   u: usize,
   cnt: usize
@@ -403,12 +405,11 @@ pub fn create_tmbunny(&mut self) {
 pub fn create_c60_icosahedron(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
-      let icosa = tmg!(tm, icosahedron, 0);
-      let mi_tm_icosa = MetaTriMesh::new(false, 1.0, &mut icosa.ph.tmv,
-        KRP095, 0, [0.8, 0.6, 0.2, 0.8]);
-      let s = format!("c60 icosahedron {}", i);
-      let (body, _, _) = self.super_mut().creator(s.as_str(), mi_tm_icosa);
-      self.set_pos_Q(body, [-4.0 + 2.0 * i as f64, 0.0, 2.0, 1.0], QI);
+      create_tm!(self,
+        [0.8, 0.6, 0.2, 0.8],
+        [-4.0 + 2.0 * i as f64, 0.0, 2.0, 1.0],
+        QI,
+        tm, icosahedron, i);
     });
   }
 }
@@ -417,12 +418,11 @@ pub fn create_c60_icosahedron(&mut self) {
 pub fn create_c60_dodecahedron(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
-      let dodeca = tmg!(tm, dodecahedron, i);
-      let mi_tm_dodeca = MetaTriMesh::new(false, 1.0, &mut dodeca.ph.tmv,
-        KRP095, 0, [0.8, 0.6, 0.2, 0.8]);
-      let s = format!("c60 dodecahedron {}", i);
-      let (body, _, _) = self.super_mut().creator(s.as_str(), mi_tm_dodeca);
-      self.set_pos_Q(body, [-4.0 + 2.0 * i as f64, -4.0, 2.0, 1.0], QI);
+      create_tm!(self,
+        [0.8, 0.6, 0.2, 0.8],
+        [-4.0 + 2.0 * i as f64, -4.0, 2.0, 1.0],
+        QI,
+        tm, dodecahedron, i);
     });
   }
 }
@@ -431,12 +431,11 @@ pub fn create_c60_dodecahedron(&mut self) {
 pub fn create_c60_dodecahedron_center(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
-      let dodecac = tmg!(tm, dodecahedron_center, i);
-      let mi_tm_dodecac = MetaTriMesh::new(false, 1.0, &mut dodecac.ph.tmv,
-        KRP095, 0, [0.8, 0.6, 0.2, 0.8]);
-      let s = format!("c60 dodecahedron center {}", i);
-      let (body, _, _) = self.super_mut().creator(s.as_str(), mi_tm_dodecac);
-      self.set_pos_Q(body, [-4.0 + 2.0 * i as f64, -2.0, 2.0, 1.0], QI);
+      create_tm!(self,
+        [0.8, 0.6, 0.2, 0.8],
+        [-4.0 + 2.0 * i as f64, -2.0, 2.0, 1.0],
+        QI,
+        tm, dodecahedron_center, i);
     });
   }
 }
@@ -445,12 +444,11 @@ pub fn create_c60_dodecahedron_center(&mut self) {
 pub fn create_c60_fullerene(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
-      let c60 = tmg!(tm, c60, i);
-      let mi_tm_c60 = MetaTriMesh::new(false, 1.0, &mut c60.ph.tmv,
-        KRP095, 0, [0.8, 0.6, 0.2, 0.8]);
-      let s = format!("c60 fullerene {}", i);
-      let (body, _, _) = self.super_mut().creator(s.as_str(), mi_tm_c60);
-      self.set_pos_Q(body, [-4.0 + 2.0 * i as f64, 4.0, 2.0, 1.0], QI);
+      create_tm!(self,
+        [0.8, 0.6, 0.2, 0.8],
+        [-4.0 + 2.0 * i as f64, 4.0, 2.0, 1.0],
+        QI,
+        tm, c60, i);
     });
   }
 }
@@ -459,46 +457,62 @@ pub fn create_c60_fullerene(&mut self) {
 pub fn create_c60_fullerene_center(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
-      let c60c = tmg!(tm, c60_center, i);
-      let mi_tm_c60c = MetaTriMesh::new(false, 1.0, &mut c60c.ph.tmv,
-        KRP095, 0, [0.8, 0.6, 0.2, 0.8]);
-      let s = format!("c60 fullerene center {}", i);
-      let (body, _, _) = self.super_mut().creator(s.as_str(), mi_tm_c60c);
-      self.set_pos_Q(body, [-4.0 + 2.0 * i as f64, 2.0, 2.0, 1.0], QI);
+      create_tm!(self,
+        [0.8, 0.6, 0.2, 0.8],
+        [-4.0 + 2.0 * i as f64, 2.0, 2.0, 1.0],
+        QI,
+        tm, c60_center, i);
     });
   }
 }
 
 /// create polyhedron
 pub fn create_polyhedron(&mut self) {
+  let col = vec![
+    [0.8, 0.6, 0.2, 0.8],
+    [0.2, 0.8, 0.6, 0.8],
+    [0.6, 0.2, 0.8, 0.8],
+    [0.8, 0.8, 0.2, 0.8],
+    [0.8, 0.2, 0.8, 0.8],
+    [0.2, 0.8, 0.8, 0.8],
+    [0.8, 0.2, 0.6, 0.8],
+    [0.6, 0.8, 0.2, 0.8],
+    [0.2, 0.6, 0.8, 0.8]];
+  let c = col[self.u % col.len()];
+  let pos = [-2.0, 0.0, 6.0, 1.0];
+  let q = vec![
+    QI, // +Y
+    dQuaternion::from_axis_and_angle([1.0, 0.0, 0.0], PIh), // +Z
+    // +Z dMatrix3 phi=-x, theta=-y, psi=-z
+    dQuaternion::from_R(dMatrix3::from_euler_angles(-PIh, 0.0, 0.0))];
   any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
     let k = match self.u {
-    0 => create_tm!(self, tm, tetra, 0),
-    1 => create_tm!(self, tm, cube, 0),
-    2 => create_tm!(self, tm, cube_center, 0),
-    3 => create_tm!(self, tm, octa, 0),
-    4 => create_tm!(self, tm, r_sphere, 0),
-    5 => create_tm!(self, tm, cylinder, 0),
-    6 => create_tm!(self, tm, capsule, 0),
-    7 => create_tm!(self, tm, cone, 0),
-    8 => create_tm!(self, tm, torus, 0),
-    9 => create_tm!(self, tm, r_torus, 0),
-    10 => create_tm!(self, tm, ring, 0),
-    11 => create_tm!(self, tm, tube, 0),
-    12 => create_tm!(self, tm, half_pipe, 0),
-    13 => create_tm!(self, tm, pin, 0),
-    14 => create_tm!(self, tm, revolution, 0),
-    15 => create_tm!(self, tm, revolution, 1),
-    16 => create_tm!(self, tm, icosahedron, 0),
-    17 => create_tm!(self, tm, icosahedron, 1),
-    18 => create_tm!(self, tm, dodecahedron, 0),
-    19 => create_tm!(self, tm, dodecahedron, 1),
-    20 => create_tm!(self, tm, dodecahedron_center, 0),
-    21 => create_tm!(self, tm, dodecahedron_center, 1),
-    22 => create_tm!(self, tm, c60, 0),
-    23 => create_tm!(self, tm, c60, 1),
-    24 => create_tm!(self, tm, c60_center, 0),
-    25 => create_tm!(self, tm, c60_center, 1),
+    0 => create_tm!(self, c, pos, q[0], tm, tetra, 0),
+    1 => create_tm!(self, c, pos, q[1], tm, cube, 0),
+    2 => create_tm!(self, c, pos, q[2], tm, cube_center, 0),
+    3 => create_tm!(self, c, pos, q[1], tm, octa, 0),
+    4 => create_tm!(self, c, pos, q[1], tm, r_sphere, 0),
+    5 => create_tm!(self, c, pos, q[1], tm, cylinder, 0),
+    6 => create_tm!(self, c, pos, q[1], tm, capsule, 0),
+    7 => create_tm!(self, c, pos, q[1], tm, cone, 0),
+    8 => create_tm!(self, c, pos, q[0], tm, torus, 0),
+    9 => create_tm!(self, c, pos, q[0], tm, r_torus, 0),
+    10 => create_tm!(self, c, pos, q[1], tm, ring, 0),
+    11 => create_tm!(self, c, pos, q[1], tm, tube, 0),
+    12 => create_tm!(self, c, pos, q[0], tm, half_pipe, 0),
+    13 => create_tm!(self, c, pos, q[1], tm, pin, 0),
+    14 => create_tm!(self, c, pos, q[0], tm, revolution, 0),
+    15 => create_tm!(self, c, pos, q[1], tm, revolution, 1),
+    16 => create_tm!(self, c, pos, q[1], tm, icosahedron, 0),
+    17 => create_tm!(self, c, pos, q[1], tm, icosahedron, 1),
+    18 => create_tm!(self, c, pos, q[1], tm, dodecahedron, 0),
+    19 => create_tm!(self, c, pos, q[1], tm, dodecahedron, 1),
+    20 => create_tm!(self, c, pos, q[1], tm, dodecahedron_center, 0),
+    21 => create_tm!(self, c, pos, q[1], tm, dodecahedron_center, 1),
+    22 => create_tm!(self, c, pos, q[1], tm, c60, 0),
+    23 => create_tm!(self, c, pos, q[1], tm, c60, 1),
+    24 => create_tm!(self, c, pos, q[1], tm, c60_center, 0),
+    25 => create_tm!(self, c, pos, q[1], tm, c60_center, 1),
     _ => "nothing".to_string()
     };
     println!("polyhedron: {}", k);
@@ -561,7 +575,7 @@ fn start_callback(&mut self) {
     tms!(tm, tube, Tube::<f64>, 0).setup(3.0, 2.8, 4.0, 6, tf);
     tms!(tm, half_pipe, HalfPipe::<f64>, 0)
     .setup(3.141592654, 3.0, 2.8, 4.0, 6, tf);
-    tms!(tm, pin, polyhedron::pin::Pin::<f64>, 0).setup(0.1, 8, 6, tf);
+    tms!(tm, pin, polyhedron::pin::Pin::<f64>, 0).setup(r, 8, 6, tf);
     tms!(tm, revolution, Revolution::<f64>, 0)
     .setup(1.0, 2, 6, (true, true), |n, m| {
       (n as f64 / (m - 1) as f64, 1.0) }, tf);
@@ -682,7 +696,7 @@ fn main() {
   ODE::open(Drawstuff::new());
   ODE::sim_loop(
     640, 480, // 800, 600,
-    Some(Box::new(SimApp{n: 26, u: 0, cnt: 0})),
+    Some(Box::new(SimApp{t: time::Instant::now(), n: 26, u: 0, cnt: 0})),
     b"./resources");
   ODE::close();
 
