@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/c60/0.3.3")]
+#![doc(html_root_url = "https://docs.rs/c60/0.4.1")]
 /*
   cc-rs https://crates.io/crates/cc
   bindgen https://crates.io/crates/bindgen
@@ -535,7 +535,7 @@ pub fn create_polyhedron(&mut self) {
 
 }
 
-#[impl_sim_derive(draw_geom, near_callback, stop_callback)]
+#[impl_sim_derive(draw_geom, stop_callback)] // near_callback
 impl Sim for SimApp {
 
 fn draw_objects(&mut self) {
@@ -612,6 +612,22 @@ fn start_callback(&mut self) {
   self.create_polyhedron();
 
   self.super_mut().start_callback();
+}
+
+fn near_callback(&mut self, dat: *mut c_void, o1: dGeomID, o2: dGeomID) {
+  self.super_mut().near_callback(dat, o1, o2);
+
+  let rode = self.super_get(); // must re get
+  let _contactgroup = rode.get_contactgroup();
+  let ground = rode.get_ground();
+  if ground == o1 || ground == o2 { return; } // vs ground
+  let (_b1p, b1gp) = rode.get_ancestor(o1);
+  let (_b2p, b2gp) = rode.get_ancestor(o2);
+  let _ids = rode.each_id(|key, id| {
+    if id == b1gp { println!("found b1: {:?}: {}", id, key); }
+    if id == b2gp { println!("found b2: {:?}: {}", id, key); }
+    true // lambda may return false
+  });
 }
 
 fn step_callback(&mut self, pause: i32) {
@@ -706,7 +722,7 @@ fn main() {
   any_pinned_init_slots!(16);
   any_pinned_set_bg_mut!(TriMeshManager<f64>, 0); // polyhedron sequence
 
-  ODE::open(Drawstuff::new());
+  ODE::open(Drawstuff::new(), 0.002, 40); // default 0.002, 40
   ODE::sim_loop(
     640, 480, // 800, 600,
     Some(Box::new(SimApp{t: time::Instant::now(), n: 26, u: 0, cnt: 0})),
