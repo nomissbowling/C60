@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/c60/0.3.2")]
+#![doc(html_root_url = "https://docs.rs/c60/0.3.3")]
 /*
   cc-rs https://crates.io/crates/cc
   bindgen https://crates.io/crates/bindgen
@@ -58,12 +58,13 @@ macro_rules! create_tm {
     $tm: ident, $hm: ident, $k: expr) => {{
     let t = tmg!($tm, $hm, $k);
     let mi_tm = MetaTriMesh::new(false, 1.0, &mut t.1.ph.tmv, KRP095, 0, $col);
-    let k = format!("{}_{:016x}", t.0, $slf.t.elapsed().as_nanos());
+    let k = $slf.ts(t.0.as_str());
     let (body, _, _) = $slf.super_mut().creator(k.as_str(), mi_tm);
     $slf.set_pos_Q(body, $pos, $q);
-    k.clone()
+    k
   }}
 }
+// pub use create_tm;
 
 pub struct SimApp {
   t: time::Instant,
@@ -73,6 +74,10 @@ pub struct SimApp {
 }
 
 impl SimApp {
+
+pub fn ts(&mut self, s: &str) -> String {
+  format!("{}_{:016x}", s, self.t.elapsed().as_nanos())
+}
 
 pub fn objs_mut(&mut self, f: bool, s: &str) {
   let rode = self.super_mut();
@@ -108,6 +113,7 @@ pub fn objs_info(&mut self, f: bool, s: &str) {
   if f || rode.is_modified(false) {
     self.cnt = rode.num();
     println!("obgs: {} in {}", self.cnt, s);
+    if !f { return; }
     let rode = self.super_get(); // must re get because borrow later self.cnt
     rode.each(|key, id, obg| {
       println!("{}: {:018p} {:?}", key, id, obg.col);
@@ -319,7 +325,8 @@ pub fn create_tmball(&mut self) {
     vec![QI, QI],
     vec![[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
     KRP100, 0, [1.0, 0.0, 0.0, 0.8]);
-  let (body, _, _) = self.super_mut().creator_composite("tmball", mi_tmball);
+  let k = self.ts("tmball");
+  let (body, _, _) = self.super_mut().creator_composite(k.as_str(), mi_tmball);
   let p = dQuaternion::from_axis_and_angle([0.0, 0.0, 1.0], PIh);
   let q = dQuaternion::from_axis_and_angle([1.0, 0.0, 0.0], PIh);
   let o = dQuaternion::multiply0(p, q);
@@ -369,7 +376,8 @@ pub fn create_sphere_roll(&mut self) {
 pub fn create_tmtetra(&mut self) {
   let mi_tmtetra = MetaTriMesh::new(false, 1.0, unsafe { &mut *tetra::tmv },
     KRP095, 0, [0.8, 0.6, 0.2, 1.0]);
-  let (body, _, _) = self.super_mut().creator("tmtetra", mi_tmtetra);
+  let k = self.ts("tmtetra");
+  let (body, _, _) = self.super_mut().creator(k.as_str(), mi_tmtetra);
   self.set_pos_Q(body, [-15.0, -1.5, 0.5, 1.0], QI);
 }
 
@@ -377,7 +385,8 @@ pub fn create_tmtetra(&mut self) {
 pub fn create_tmcube(&mut self) {
   let mi_tmcube = MetaTriMesh::new(false, 1.0, unsafe { &mut *cube::tmv },
     KRP095, 0, [0.6, 0.8, 0.2, 1.0]);
-  let (body, _, _) = self.super_mut().creator("tmcube", mi_tmcube);
+  let k = self.ts("tmcube");
+  let (body, _, _) = self.super_mut().creator(k.as_str(), mi_tmcube);
   self.set_pos_Q(body, [-16.5, -3.0, 0.5, 1.0],
     dQuaternion::from_axis_and_angle([1.0, 1.0, 1.0], PIq));
 }
@@ -386,7 +395,8 @@ pub fn create_tmcube(&mut self) {
 pub fn create_tmicosahedron(&mut self) {
   let mi_tmih = MetaTriMesh::new(false, 1.0, unsafe { &mut *icosahedron::tmv },
     KRP095, 0, [0.2, 0.8, 0.6, 1.0]);
-  let (body, _, _) = self.super_mut().creator("tmicosahedron", mi_tmih);
+  let k = self.ts("tmicosahedron");
+  let (body, _, _) = self.super_mut().creator(k.as_str(), mi_tmih);
   self.set_pos_Q(body, [-16.5, 3.0, 0.5, 1.0], QI);
 }
 
@@ -394,7 +404,8 @@ pub fn create_tmicosahedron(&mut self) {
 pub fn create_tmbunny(&mut self) {
   let mi_tmbunny = MetaTriMesh::new(false, 1.0, unsafe { &mut *bunny::tmv },
     KRP095, 0, [0.8, 0.2, 0.6, 1.0]);
-  let (body, _, _) = self.super_mut().creator("tmbunny", mi_tmbunny);
+  let k = self.ts("tmbunny");
+  let (body, _, _) = self.super_mut().creator(k.as_str(), mi_tmbunny);
   // phi=-x, theta=-y, psi=-z
   let m = dMatrix3::from_euler_angles(-PIh, 0.0, 0.0);
   self.set_pos_Q(body, [-15.0, 0.25, 0.88, 1.0], dQuaternion::from_R(m));
@@ -478,13 +489,15 @@ pub fn create_polyhedron(&mut self) {
     [0.8, 0.2, 0.6, 0.8],
     [0.6, 0.8, 0.2, 0.8],
     [0.2, 0.6, 0.8, 0.8]];
-  let c = col[self.u % col.len()];
+  let c = col[self.t.elapsed().as_secs() as usize % col.len()];
   let pos = [-2.0, 0.0, 6.0, 1.0];
   let q = vec![
     QI, // +Y
     dQuaternion::from_axis_and_angle([1.0, 0.0, 0.0], PIh), // +Z
-    // +Z dMatrix3 phi=-x, theta=-y, psi=-z
-    dQuaternion::from_R(dMatrix3::from_euler_angles(-PIh, 0.0, 0.0))];
+    // dMatrix3 phi=-x, theta=-y, psi=-z
+    dQuaternion::from_R(dMatrix3::from_euler_angles(-PIh, 0.0, 0.0)), // +Z
+    dQuaternion::from_R(dMatrix3::from_euler_angles(0.0, -PIh, 0.0)), // +YZX
+    dQuaternion::from_R(dMatrix3::from_euler_angles(0.0, 0.0, -PIh))]; // -X
   any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
     let k = match self.u {
     0 => create_tm!(self, c, pos, q[0], tm, tetra, 0),
@@ -496,13 +509,13 @@ pub fn create_polyhedron(&mut self) {
     6 => create_tm!(self, c, pos, q[1], tm, capsule, 0),
     7 => create_tm!(self, c, pos, q[1], tm, cone, 0),
     8 => create_tm!(self, c, pos, q[0], tm, torus, 0),
-    9 => create_tm!(self, c, pos, q[0], tm, r_torus, 0),
+    9 => create_tm!(self, c, pos, q[4], tm, r_torus, 0),
     10 => create_tm!(self, c, pos, q[1], tm, ring, 0),
     11 => create_tm!(self, c, pos, q[1], tm, tube, 0),
-    12 => create_tm!(self, c, pos, q[0], tm, half_pipe, 0),
+    12 => create_tm!(self, c, pos, q[3], tm, half_pipe, 0),
     13 => create_tm!(self, c, pos, q[1], tm, pin, 0),
-    14 => create_tm!(self, c, pos, q[0], tm, revolution, 0),
-    15 => create_tm!(self, c, pos, q[1], tm, revolution, 1),
+    14 => create_tm!(self, c, pos, q[2], tm, revolution, 0),
+    15 => create_tm!(self, c, pos, q[4], tm, revolution, 1),
     16 => create_tm!(self, c, pos, q[1], tm, icosahedron, 0),
     17 => create_tm!(self, c, pos, q[1], tm, icosahedron, 1),
     18 => create_tm!(self, c, pos, q[1], tm, dodecahedron, 0),
@@ -638,7 +651,7 @@ fn command_callback(&mut self, cmd: i32) {
     },
     't' => {
       for k in ["ball_big", "box_small",
-        "apple", "roll", "tmball"] {
+        "apple", "roll", "tmball"] { // TODO: tmXX_timestamp will not be found
         match self.super_mut().find_mut(k.to_string()) {
           Err(e) => { println!("{}", e); },
           Ok(obg) => {
@@ -648,7 +661,7 @@ fn command_callback(&mut self, cmd: i32) {
         }
       }
       for k in ["ball", "tmbunny", "tmtetra",
-        "tmcube", "tmicosahedron"] {
+        "tmcube", "tmicosahedron"] { // TODO: tmXX_timestamp will not be found
         match self.super_mut().find_mut(k.to_string()) {
           Err(e) => { println!("{}", e); },
           Ok(obg) => {
