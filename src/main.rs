@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/c60/0.4.1")]
+#![doc(html_root_url = "https://docs.rs/c60/0.4.2")]
 /*
   cc-rs https://crates.io/crates/cc
   bindgen https://crates.io/crates/bindgen
@@ -722,7 +722,15 @@ fn main() {
   any_pinned_init_slots!(16);
   any_pinned_set_bg_mut!(TriMeshManager<f64>, 0); // polyhedron sequence
 
-  ODE::open(Drawstuff::new(), 0.002, 40); // default 0.002, 40
+  // default values
+  // drawstuff: select drawstuff module
+  // delta: dReal 0.002
+  // QuickStepW: over_relaxation: dReal 1.3
+  // QuickStepNumIterations: usize (c_int) 20
+  // ContactMaxCorrectingVel: vel: dReal 1e-3 (1e-3, 1e-2, 0.0 or inf, ...)
+  // ContactSurfaceLayer: depth: dReal 0.0
+  // num_contact: 40
+  ODE::open(Drawstuff::new(), 0.002, 1.3, 20, 1e-3, 0.0, 40);
   ODE::sim_loop(
     640, 480, // 800, 600,
     Some(Box::new(SimApp{t: time::Instant::now(), n: 26, u: 0, cnt: 0})),
