@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/c60/0.4.2")]
+#![doc(html_root_url = "https://docs.rs/c60/0.4.3")]
 /*
   cc-rs https://crates.io/crates/cc
   bindgen https://crates.io/crates/bindgen
@@ -184,13 +184,13 @@ pub fn create_test_box_frames(&mut self) {
 pub fn create_test_capsule_frames(&mut self) {
   let micap_0 = MetaCapsule::new(0.001, 0.5, 16.0,
     KRP080, 0, [0.0, 1.0, 0.0, 0.8]);
-  let (body, _, _) = self.super_mut().creator("capsule_0", micap_0);
+  let (body, _, _) = self.super_mut().creator("p_capsule_0", micap_0);
   self.set_pos_R(body, [-8.6, 0.0, 1.5, 1.0],
     dMatrix3::from_axis_and_angle([1.0, 0.0, 0.0], PIh));
 
   let micap_1 = MetaCapsule::new(0.001, 0.5, 16.0,
     KRP080, 0, [0.0, 0.0, 1.0, 0.8]);
-  let (body, _, _) = self.super_mut().creator("capsule_1", micap_1);
+  let (body, _, _) = self.super_mut().creator("p_capsule_1", micap_1);
   self.set_pos_R(body, [8.6, 0.0, 1.5, 1.0],
     dMatrix3::from_axis_and_angle([1.0, 0.0, 0.0], PIh));
 }
@@ -199,13 +199,13 @@ pub fn create_test_capsule_frames(&mut self) {
 pub fn create_test_cylinder_frames(&mut self) {
   let micyl_0 = MetaCylinder::new(0.001, 0.5, 16.0,
     KRP080, 0, [1.0, 0.0, 1.0, 0.8]);
-  let (body, _, _) = self.super_mut().creator("cylinder_0", micyl_0);
+  let (body, _, _) = self.super_mut().creator("p_cylinder_0", micyl_0);
   self.set_pos_R(body, [0.0, 8.6, 1.5, 1.0],
     dMatrix3::from_axis_and_angle([0.0, 1.0, 0.0], PIh));
 
   let micyl_1 = MetaCylinder::new(0.001, 0.5, 16.0,
     KRP080, 0, [0.0, 1.0, 1.0, 0.8]);
-  let (body, _, _) = self.super_mut().creator("cylinder_1", micyl_1);
+  let (body, _, _) = self.super_mut().creator("p_cylinder_1", micyl_1);
   self.set_pos_R(body, [0.0, -8.6, 1.5, 1.0],
     dMatrix3::from_axis_and_angle([0.0, 1.0, 0.0], PIh));
 }
@@ -560,7 +560,7 @@ fn start_callback(&mut self) {
   self.create_test_tetra();
   self.create_test_cube();
   self.create_test_icosahedron();
-  self.create_test_plane();
+//  self.create_test_plane();
 
   self.create_tmball();
   self.create_slope();
@@ -617,17 +617,47 @@ fn start_callback(&mut self) {
 fn near_callback(&mut self, dat: *mut c_void, o1: dGeomID, o2: dGeomID) {
   self.super_mut().near_callback(dat, o1, o2);
 
-  let rode = self.super_get(); // must re get
-  let _contactgroup = rode.get_contactgroup();
+  let rode = self.super_mut(); // must mut (for get_contacts)
+  if rode.is_space(o1) || rode.is_space(o2) { return; } // skip when space
   let ground = rode.get_ground();
   if ground == o1 || ground == o2 { return; } // vs ground
-  let (_b1p, b1gp) = rode.get_ancestor(o1);
-  let (_b2p, b2gp) = rode.get_ancestor(o2);
+  let _contactgroup = rode.get_contactgroup(); // now do nothing
+  let n = rode.get_contacts(o1, o2);
+  if n == 0 { return; } // skip no collision
+  let contacts = rode.ref_contacts(); // or rode.ref_contacts_mut()
+  let dsp = || {
+    for (i, c) in contacts.iter().enumerate() {
+      if i >= n as usize { break; }
+      // &Vec<dContact> dContactGeom dGeomID dReal
+      println!(" {:04} {:?}({:?}) {:?}({:?}) {:8.3e}",
+        i,
+        c.geom.g1, rode.get_grand_parent(c.geom.g1),
+        c.geom.g2, rode.get_grand_parent(c.geom.g2),
+        c.geom.depth);
+    }
+  };
+  let (b1p, _b1gp) = rode.get_ancestor(o1);
+  let (b2p, _b2gp) = rode.get_ancestor(o2);
+  let skip = ["box", "p_", "plane", "slope", "apple", "ball", "roll",
+    "fvp", "tmv", "tm"];
+  let mut f = false;
   let _ids = rode.each_id(|key, id| {
-    if id == b1gp { println!("found b1: {:?}: {}", id, key); }
-    if id == b2gp { println!("found b2: {:?}: {}", id, key); }
+    for skp in skip {
+      let (mut slen, klen) = (skp.len(), key.len());
+      if klen < slen { slen = klen; }
+      if key[..slen] == skp[..slen] { return false; }
+    }
+    if id == b1p {
+      println!("b1-b2 {:04} {:?} {:?} {}", n, id, b2p, key);
+      f = true;
+    }
+    if id == b2p {
+      println!("b2-b1 {:04} {:?} {:?} {}", n, id, b1p, key);
+      f = true;
+    }
     true // lambda may return false
   });
+  if f { dsp(); }
 }
 
 fn step_callback(&mut self, pause: i32) {
@@ -729,8 +759,8 @@ fn main() {
   // QuickStepNumIterations: usize (c_int) 20
   // ContactMaxCorrectingVel: vel: dReal 1e-3 (1e-3, 1e-2, 0.0 or inf, ...)
   // ContactSurfaceLayer: depth: dReal 0.0
-  // num_contact: 40
-  ODE::open(Drawstuff::new(), 0.002, 1.3, 20, 1e-3, 0.0, 40);
+  // num_contact: 256
+  ODE::open(Drawstuff::new(), 0.002, 1.3, 20, 1e-3, 0.0, 256);
   ODE::sim_loop(
     640, 480, // 800, 600,
     Some(Box::new(SimApp{t: time::Instant::now(), n: 26, u: 0, cnt: 0})),
