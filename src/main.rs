@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/c60/0.4.3")]
+#![doc(html_root_url = "https://docs.rs/c60/0.4.4")]
 /*
   cc-rs https://crates.io/crates/cc
   bindgen https://crates.io/crates/bindgen
@@ -32,6 +32,7 @@ use ode_rs::ode::*;
 use std::ffi::{c_void}; // used by impl_sim_fn
 use impl_sim::{impl_sim_fn, impl_sim_derive};
 use std::time;
+use regex::Regex;
 
 const APP_HELP: &str = "
   application defined key set (this app)
@@ -77,6 +78,21 @@ impl SimApp {
 
 pub fn ts(&mut self, s: &str) -> String {
   format!("{}_{:016x}", s, self.t.elapsed().as_nanos())
+}
+
+pub fn ts_rm(&self, s: &str) -> Option<String> {
+  let re = r"
+(?P<o>[0-9A-Za-z_]+)
+_
+(?P<p>[0-9]+)
+_
+(?P<q>[0-9A-Fa-f]+)
+".replace("\n", "");
+  let re = Regex::new(&re).unwrap();
+  match re.captures(s) {
+  None => None,
+  Some(caps) => Some(caps["o"].to_string())
+  }
 }
 
 pub fn objs_mut(&mut self, f: bool, s: &str) {
@@ -625,39 +641,42 @@ fn near_callback(&mut self, dat: *mut c_void, o1: dGeomID, o2: dGeomID) {
   let n = rode.get_contacts(o1, o2);
   if n == 0 { return; } // skip no collision
   let contacts = rode.ref_contacts(); // or rode.ref_contacts_mut()
-  let dsp = || {
-    for (i, c) in contacts.iter().enumerate() {
-      if i >= n as usize { break; }
-      // &Vec<dContact> dContactGeom dGeomID dReal
-      println!(" {:04} {:?}({:?}) {:?}({:?}) {:8.3e}",
-        i,
-        c.geom.g1, rode.get_grand_parent(c.geom.g1),
-        c.geom.g2, rode.get_grand_parent(c.geom.g2),
-        c.geom.depth);
-    }
-  };
   let (b1p, _b1gp) = rode.get_ancestor(o1);
   let (b2p, _b2gp) = rode.get_ancestor(o2);
   let skip = ["box", "p_", "plane", "slope", "apple", "ball", "roll",
     "fvp", "tmv", "tm"];
-  let mut f = false;
+  let mut kpq: Vec<(String, dBodyID, dBodyID)> = vec![];
   let _ids = rode.each_id(|key, id| {
     for skp in skip {
       let (mut slen, klen) = (skp.len(), key.len());
       if klen < slen { slen = klen; }
       if key[..slen] == skp[..slen] { return false; }
     }
-    if id == b1p {
-      println!("b1-b2 {:04} {:?} {:?} {}", n, id, b2p, key);
-      f = true;
-    }
-    if id == b2p {
-      println!("b2-b1 {:04} {:?} {:?} {}", n, id, b1p, key);
-      f = true;
-    }
-    true // lambda may return false
+    if id == b1p { kpq.push((key.to_string(), id, b2p)); return true; }
+    if id == b2p { kpq.push((key.to_string(), id, b1p)); return true; }
+    false // lambda returns bool
   });
-  if f { dsp(); }
+  if kpq.len() == 0 { return; } // when one of skip target
+  for (key, p, q) in &kpq { println!(" {:?} {:04} {:?} {}", q, n, p, key); }
+  for (i, c) in contacts.iter().enumerate() {
+    if i >= n as usize { break; }
+    // &Vec<dContact> dContactGeom dGeomID dReal
+    println!("  {:04} {:?}({:?}) {:?}({:?}) {:8.3e}",
+      i,
+      c.geom.g1, rode.get_grand_parent(c.geom.g1),
+      c.geom.g2, rode.get_grand_parent(c.geom.g2),
+      c.geom.depth);
+  }
+  // this code must be after contacts.iter() because of borrow mut self
+  if kpq.len() == 2 { // may be always 2
+    let (pk, qk) = (self.ts_rm(&kpq[0].0), self.ts_rm(&kpq[1].0));
+    if pk != None && qk != None {
+      let (pk, qk) = (pk.unwrap(), qk.unwrap());
+      if pk == qk { // check same meta object
+        println!("{}", pk);
+      }
+    }
+  }
 }
 
 fn step_callback(&mut self, pause: i32) {

@@ -1,6 +1,6 @@
 [package]
 name = "c60"
-version = "0.4.3" # change with html_root_url in main.rs
+version = "0.4.4" # change with html_root_url in main.rs
 edition = "2021"
 authors = ["nomissbowling <nomissbowling@yahoo.co.jp>"]
 
@@ -23,6 +23,8 @@ Fullerene = { version = "0.3" }
 trimesh = { version = "0.3" }
 
 anyslot = { version = "0.1" }
+
+regex = { version = "1.10" } # "1.10.4"
 
 num = { version = "0.4" } # "0.4.1"
 
