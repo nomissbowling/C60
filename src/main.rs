@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/c60/0.4.4")]
+#![doc(html_root_url = "https://docs.rs/c60/0.4.5")]
 /*
   cc-rs https://crates.io/crates/cc
   bindgen https://crates.io/crates/bindgen
@@ -68,6 +68,8 @@ macro_rules! create_tm {
 // pub use create_tm;
 
 pub struct SimApp {
+  /// erase body pairs
+  ebps: Vec<(dBodyID, dBodyID, String)>,
   t: time::Instant,
   n: usize,
   u: usize,
@@ -643,21 +645,22 @@ fn near_callback(&mut self, dat: *mut c_void, o1: dGeomID, o2: dGeomID) {
   let contacts = rode.ref_contacts(); // or rode.ref_contacts_mut()
   let (b1p, _b1gp) = rode.get_ancestor(o1);
   let (b2p, _b2gp) = rode.get_ancestor(o2);
+  if b1p == b2p { return; } // may not arrive here
   let skip = ["box", "p_", "plane", "slope", "apple", "ball", "roll",
     "fvp", "tmv", "tm"];
-  let mut kpq: Vec<(String, dBodyID, dBodyID)> = vec![];
+  let mut qpk: Vec<(dBodyID, dBodyID, String)> = vec![];
   let _ids = rode.each_id(|key, id| {
     for skp in skip {
       let (mut slen, klen) = (skp.len(), key.len());
       if klen < slen { slen = klen; }
       if key[..slen] == skp[..slen] { return false; }
     }
-    if id == b1p { kpq.push((key.to_string(), id, b2p)); return true; }
-    if id == b2p { kpq.push((key.to_string(), id, b1p)); return true; }
+    if id == b1p { qpk.push((b2p, id, key.to_string())); return true; }
+    if id == b2p { qpk.push((b1p, id, key.to_string())); return true; }
     false // lambda returns bool
   });
-  if kpq.len() == 0 { return; } // when one of skip target
-  for (key, p, q) in &kpq { println!(" {:?} {:04} {:?} {}", q, n, p, key); }
+  if qpk.len() == 0 { return; } // when one of skip target
+  for (q, p, key) in &qpk { println!(" {:?} {:04} {:?} {}", q, n, p, key); }
   for (i, c) in contacts.iter().enumerate() {
     if i >= n as usize { break; }
     // &Vec<dContact> dContactGeom dGeomID dReal
@@ -668,12 +671,13 @@ fn near_callback(&mut self, dat: *mut c_void, o1: dGeomID, o2: dGeomID) {
       c.geom.depth);
   }
   // this code must be after contacts.iter() because of borrow mut self
-  if kpq.len() == 2 { // may be always 2
-    let (pk, qk) = (self.ts_rm(&kpq[0].0), self.ts_rm(&kpq[1].0));
+  if qpk.len() == 2 { // may be always 2
+    if qpk[0].0 != qpk[1].1 || qpk[0].1 != qpk[1].0 { return; }
+    let (pk, qk) = (self.ts_rm(&qpk[0].2), self.ts_rm(&qpk[1].2));
     if pk != None && qk != None {
       let (pk, qk) = (pk.unwrap(), qk.unwrap());
       if pk == qk { // check same meta object
-        println!("{}", pk);
+        self.ebps.push((qpk[0].1, qpk[1].1, pk));
       }
     }
   }
@@ -682,6 +686,12 @@ fn near_callback(&mut self, dat: *mut c_void, o1: dGeomID, o2: dGeomID) {
 fn step_callback(&mut self, pause: i32) {
   self.objs_info(false, "step"); // twice (before draw)
   self.super_mut().step_callback(pause);
+  for (q, p, k) in self.ebps.clone().into_iter() { // must clone and into_iter
+    println!("disappear {:?} {:?} {}", q, p, k);
+    let rode = self.super_mut(); // must mut (and in the loop)
+    for o in [p, q] { rode.unregister_obg_by_id(o, true); } // with destroy
+  }
+  self.ebps.clear();
 }
 
 fn command_callback(&mut self, cmd: i32) {
@@ -782,7 +792,8 @@ fn main() {
   ODE::open(Drawstuff::new(), 0.002, 1.3, 20, 1e-3, 0.0, 256);
   ODE::sim_loop(
     640, 480, // 800, 600,
-    Some(Box::new(SimApp{t: time::Instant::now(), n: 26, u: 0, cnt: 0})),
+    Some(Box::new(SimApp{
+      ebps: vec![], t: time::Instant::now(), n: 26, u: 0, cnt: 0})),
     b"./resources");
   ODE::close();
 
