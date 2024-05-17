@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/c60/0.4.5")]
+#![doc(html_root_url = "https://docs.rs/c60/0.4.6")]
 /*
   cc-rs https://crates.io/crates/cc
   bindgen https://crates.io/crates/bindgen
@@ -47,6 +47,8 @@ const APP_HELP: &str = "
   '8': drop c60 dodecahedron
   '9': drop c60 fullerene
   '@': drop polyhedron (sequence)
+  'i': collide info
+  'j': collide info sub
   ' ': drop apple ball
   't': torque
   'o': big ball info
@@ -70,6 +72,12 @@ macro_rules! create_tm {
 pub struct SimApp {
   /// erase body pairs
   ebps: Vec<(dBodyID, dBodyID, String)>,
+  /// drop pos
+  pos: dVector3,
+  /// collide info
+  i: bool,
+  /// collide info sub
+  j: bool,
   t: time::Instant,
   n: usize,
   u: usize,
@@ -496,7 +504,7 @@ pub fn create_c60_fullerene_center(&mut self) {
 }
 
 /// create polyhedron
-pub fn create_polyhedron(&mut self) {
+pub fn create_polyhedron(&mut self, i: usize, pos: dVector3) {
   let col = vec![
     [0.8, 0.6, 0.2, 0.8],
     [0.2, 0.8, 0.6, 0.8],
@@ -508,7 +516,6 @@ pub fn create_polyhedron(&mut self) {
     [0.6, 0.8, 0.2, 0.8],
     [0.2, 0.6, 0.8, 0.8]];
   let c = col[self.t.elapsed().as_secs() as usize % col.len()];
-  let pos = [-2.0, 0.0, 6.0, 1.0];
   let q = vec![
     QI, // +Y
     dQuaternion::from_axis_and_angle([1.0, 0.0, 0.0], PIh), // +Z
@@ -517,7 +524,7 @@ pub fn create_polyhedron(&mut self) {
     dQuaternion::from_R(dMatrix3::from_euler_angles(0.0, -PIh, 0.0)), // +YZX
     dQuaternion::from_R(dMatrix3::from_euler_angles(0.0, 0.0, -PIh))]; // -X
   any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
-    let k = match self.u {
+    let k = match i % self.n {
     0 => create_tm!(self, c, pos, q[0], tm, tetra, 0),
     1 => create_tm!(self, c, pos, q[1], tm, cube, 0),
     2 => create_tm!(self, c, pos, q[2], tm, cube_center, 0),
@@ -548,7 +555,6 @@ pub fn create_polyhedron(&mut self) {
     };
     println!("polyhedron: {}", k);
   });
-  self.u = (self.u + 1) % self.n;
 }
 
 }
@@ -627,7 +633,7 @@ fn start_callback(&mut self) {
   self.create_c60_dodecahedron_center();
   self.create_c60_fullerene();
   self.create_c60_fullerene_center();
-  self.create_polyhedron();
+  self.create_polyhedron(self.u, self.pos);
 
   self.super_mut().start_callback();
 }
@@ -635,7 +641,8 @@ fn start_callback(&mut self) {
 fn near_callback(&mut self, dat: *mut c_void, o1: dGeomID, o2: dGeomID) {
   self.super_mut().near_callback(dat, o1, o2);
 
-  let rode = self.super_mut(); // must mut (for get_contacts)
+  let (info, info_sub) = (self.i, self.j); // tmp copy
+  let rode = self.super_mut(); // must re get mut (for get_contacts)
   if rode.is_space(o1) || rode.is_space(o2) { return; } // skip when space
   let ground = rode.get_ground();
   if ground == o1 || ground == o2 { return; } // vs ground
@@ -660,15 +667,19 @@ fn near_callback(&mut self, dat: *mut c_void, o1: dGeomID, o2: dGeomID) {
     false // lambda returns bool
   });
   if qpk.len() == 0 { return; } // when one of skip target
-  for (q, p, key) in &qpk { println!(" {:?} {:04} {:?} {}", q, n, p, key); }
-  for (i, c) in contacts.iter().enumerate() {
-    if i >= n as usize { break; }
-    // &Vec<dContact> dContactGeom dGeomID dReal
-    println!("  {:04} {:?}({:?}) {:?}({:?}) {:8.3e}",
-      i,
-      c.geom.g1, rode.get_grand_parent(c.geom.g1),
-      c.geom.g2, rode.get_grand_parent(c.geom.g2),
-      c.geom.depth);
+  if info {
+    for (q, p, key) in &qpk { println!(" {:?} {:04} {:?} {}", q, n, p, key); }
+    if info_sub {
+      for (i, c) in contacts.iter().enumerate() {
+        if i >= n as usize { break; }
+        // &Vec<dContact> dContactGeom dGeomID dReal
+        println!("  {:04} {:?}({:?}) {:?}({:?}) {:8.3e}",
+          i,
+          c.geom.g1, rode.get_grand_parent(c.geom.g1),
+          c.geom.g2, rode.get_grand_parent(c.geom.g2),
+          c.geom.depth);
+      }
+    }
   }
   // this code must be after contacts.iter() because of borrow mut self
   if qpk.len() == 2 { // may be always 2
@@ -688,8 +699,17 @@ fn step_callback(&mut self, pause: i32) {
   self.super_mut().step_callback(pause);
   for (q, p, k) in self.ebps.clone().into_iter() { // must clone and into_iter
     println!("disappear {:?} {:?} {}", q, p, k);
+    let mut pos = vec![];
     let rode = self.super_mut(); // must mut (and in the loop)
-    for o in [p, q] { rode.unregister_obg_by_id(o, true); } // with destroy
+    for o in [p, q] {
+      pos.push(Obg::get_pos_mut_by_id(o));
+      rode.unregister_obg_by_id(o, true);
+    } // with destroy
+    let c = pos.iter().fold(vec![0.0; 4], |s, p|
+      s.iter().zip(p.iter()).map(|(&q, &p)| q + p).collect()
+    ).into_iter().map(|v| v / 2.0).collect::<Vec<_>>();
+    // println!("{:?}", c);
+    self.create_polyhedron(self.u, c.try_into().unwrap());
   }
   self.ebps.clear();
 }
@@ -713,7 +733,14 @@ fn command_callback(&mut self, cmd: i32) {
       self.create_c60_fullerene_center();
     },
     '@' => {
-      self.create_polyhedron();
+      self.u = (self.u + 1) % self.n;
+      self.create_polyhedron(self.u, self.pos);
+    },
+    'i' => {
+      self.i = !self.i;
+    },
+    'j' => {
+      self.j = !self.j;
     },
     ' ' => {
       let k = "apple";
@@ -793,7 +820,8 @@ fn main() {
   ODE::sim_loop(
     640, 480, // 800, 600,
     Some(Box::new(SimApp{
-      ebps: vec![], t: time::Instant::now(), n: 26, u: 0, cnt: 0})),
+      ebps: vec![], pos: [-2.0, 0.0, 6.0, 1.0], i: false, j: false,
+      t: time::Instant::now(), n: 26, u: 0, cnt: 0})),
     b"./resources");
   ODE::close();
 
