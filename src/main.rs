@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/c60/0.4.6")]
+#![doc(html_root_url = "https://docs.rs/c60/0.5.0")]
 /*
   cc-rs https://crates.io/crates/cc
   bindgen https://crates.io/crates/bindgen
@@ -13,6 +13,7 @@
     libwinpthread-1.dll
 */
 
+use ph_faces::avg_f4;
 use trimesh::polyhedron::{
   self, tetra::*, cube::*, octa::*,
   sphere::*, cylinder::*, capsule::*, cone::*,
@@ -47,8 +48,8 @@ const APP_HELP: &str = "
   '8': drop c60 dodecahedron
   '9': drop c60 fullerene
   '@': drop polyhedron (sequence)
-  'i': collide info
-  'j': collide info sub
+  'i': collision info
+  'j': collision info sub
   ' ': drop apple ball
   't': torque
   'o': big ball info
@@ -74,9 +75,9 @@ pub struct SimApp {
   ebps: Vec<(dBodyID, dBodyID, String)>,
   /// drop pos
   pos: dVector3,
-  /// collide info
+  /// collision info
   i: bool,
-  /// collide info sub
+  /// collision info sub
   j: bool,
   t: time::Instant,
   n: usize,
@@ -705,9 +706,7 @@ fn step_callback(&mut self, pause: i32) {
       pos.push(Obg::get_pos_mut_by_id(o));
       rode.unregister_obg_by_id(o, true);
     } // with destroy
-    let c = pos.iter().fold(vec![0.0; 4], |s, p|
-      s.iter().zip(p.iter()).map(|(&q, &p)| q + p).collect()
-    ).into_iter().map(|v| v / 2.0).collect::<Vec<_>>();
+    let c = avg_f4(&pos);
     // println!("{:?}", c);
     self.create_polyhedron(self.u, c.try_into().unwrap());
   }
