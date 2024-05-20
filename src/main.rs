@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/c60/0.5.0")]
+#![doc(html_root_url = "https://docs.rs/c60/0.5.1")]
 /*
   cc-rs https://crates.io/crates/cc
   bindgen https://crates.io/crates/bindgen
@@ -32,6 +32,7 @@ use ode_rs::ode::*;
 
 use std::ffi::{c_void}; // used by impl_sim_fn
 use impl_sim::{impl_sim_fn, impl_sim_derive};
+use std::collections::HashMap;
 use std::time;
 use regex::Regex;
 
@@ -71,6 +72,8 @@ macro_rules! create_tm {
 // pub use create_tm;
 
 pub struct SimApp {
+  /// evolution &lt;key, next&gt;
+  evo: HashMap<String, usize>,
   /// erase body pairs
   ebps: Vec<(dBodyID, dBodyID, String)>,
   /// drop pos
@@ -708,7 +711,11 @@ fn step_callback(&mut self, pause: i32) {
     } // with destroy
     let c = avg_f4(&pos);
     // println!("{:?}", c);
-    self.create_polyhedron(self.u, c.try_into().unwrap());
+    let u = match self.evo.get(&k) {
+    None => self.u,
+    Some(&u) => u
+    };
+    self.create_polyhedron(u, c.try_into().unwrap());
   }
   self.ebps.clear();
 }
@@ -819,6 +826,18 @@ fn main() {
   ODE::sim_loop(
     640, 480, // 800, 600,
     Some(Box::new(SimApp{
+      evo: vec![
+        ("r_sphere", 2),
+        ("cube_center", 7),
+        ("cone", 0),
+        ("tetra", 3),
+        ("octa", 13),
+        ("pin", 10),
+        ("ring", 16),
+        ("icosahedron", 20),
+        ("dodecahedron_center", 24),
+        ("c60_center", 4)
+      ].into_iter().map(|(s, u)| (s.to_string(), u)).into_iter().collect(),
       ebps: vec![], pos: [-2.0, 0.0, 6.0, 1.0], i: false, j: false,
       t: time::Instant::now(), n: 26, u: 0, cnt: 0})),
     b"./resources");
