@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/c60/0.5.1")]
+#![doc(html_root_url = "https://docs.rs/c60/0.5.2")]
 /*
   cc-rs https://crates.io/crates/cc
   bindgen https://crates.io/crates/bindgen
@@ -13,7 +13,7 @@
     libwinpthread-1.dll
 */
 
-use ph_faces::avg_f4;
+use ph_faces::{prec_eq_f, avg_f4};
 use trimesh::polyhedron::{
   self, tetra::*, cube::*, octa::*,
   sphere::*, cylinder::*, capsule::*, cone::*,
@@ -32,6 +32,7 @@ use ode_rs::ode::*;
 
 use std::ffi::{c_void}; // used by impl_sim_fn
 use impl_sim::{impl_sim_fn, impl_sim_derive};
+use rand::{Rng, rngs};
 use std::collections::HashMap;
 use std::time;
 use regex::Regex;
@@ -49,31 +50,72 @@ const APP_HELP: &str = "
   '8': drop c60 dodecahedron
   '9': drop c60 fullerene
   '@': drop polyhedron (sequence)
-  'i': collision info
-  'j': collision info sub
+  'h': left
+  'j': front
+  'k': back
+  'l': right
+  'c': collision info
+  'x': collision info sub
   ' ': drop apple ball
   't': torque
   'o': big ball info
   'b': test mut (big ball)
   'a': test cmd (all info)";
 
+#[derive(Debug, Clone, Copy)]
+#[repr(usize)]
+pub enum PE {
+  ETetra, ECube, ECubeCenter, EOcta, ERSphere, ECylinder, ECapsule, ECone,
+  ETorus, ERTorus, ERing, ETube, EHalfPipe, EPin,
+  ERevolutionN0, ERevolutionN1,
+  EIcosahedronN0, EIcosahedronN1,
+  EDodecahedronN0, EDodecahedronN1,
+  EDodecahedronCenterN0, EDodecahedronCenterN1,
+  EC60N0, EC60N1,
+  EC60CenterN0, EC60CenterN1,
+  End
+}
+pub use PE::*;
+
+impl PE {
+  pub fn from_usize(u: usize) -> Option<Self> {
+    const PS: [PE; PE::End as usize] = [
+      ETetra, ECube, ECubeCenter, EOcta, ERSphere, ECylinder, ECapsule, ECone,
+      ETorus, ERTorus, ERing, ETube, EHalfPipe, EPin,
+      ERevolutionN0, ERevolutionN1,
+      EIcosahedronN0, EIcosahedronN1,
+      EDodecahedronN0, EDodecahedronN1,
+      EDodecahedronCenterN0, EDodecahedronCenterN1,
+      EC60N0, EC60N1,
+      EC60CenterN0, EC60CenterN1];
+    if u >= PE::End as usize { return None; }
+    Some(PS[u])
+  }
+}
+
 #[macro_export]
-macro_rules! create_tm {
+macro_rules! cp {
   ($slf: expr, $col: expr, $pos: expr, $q: expr,
     $tm: ident, $hm: ident, $k: expr) => {{
-    let t = tmg!($tm, $hm, $k);
-    let mi_tm = MetaTriMesh::new(false, 1.0, &mut t.1.ph.tmv, KRP095, 0, $col);
-    let k = $slf.ts(t.0.as_str());
+    let (s, t) = tmg!($tm, $hm, $k);
+    let dm = if prec_eq_f(t.ph.vol, 1e-6, 0.0) { 1.0 } else { 1.0 / t.ph.vol };
+    let krp = Krp::new(true, true, true, 0.2, 0.3);
+    let mi_tm = MetaTriMesh::new(false, dm, &mut t.ph.tmv, krp, 0, $col);
+    let k = $slf.ts(s.as_str());
     let (body, _, _) = $slf.super_mut().creator(k.as_str(), mi_tm);
     $slf.set_pos_Q(body, $pos, $q);
     k
   }}
 }
-// pub use create_tm;
+// pub use cp;
 
 pub struct SimApp {
+  /// rand::thread_rng()
+  rng: rngs::ThreadRng,
+  /// pre evolution drop
+  ped: Vec<PE>,
   /// evolution &lt;key, next&gt;
-  evo: HashMap<String, usize>,
+  evo: HashMap<String, PE>,
   /// erase body pairs
   ebps: Vec<(dBodyID, dBodyID, String)>,
   /// drop pos
@@ -381,7 +423,7 @@ pub fn create_slope(&mut self) {
 
 /// create x, y on the bunny
 pub fn create_sphere_apple(&mut self) {
-  let krp = Krp::new(true, false, true, 0.95);
+  let krp = Krp::new(true, false, true, 0.95, 0.1);
   let mi_apple = MetaSphere::new(0.1, 0.2, krp, 0, [0.8, 0.4, 0.4, 0.8]);
   let (body, _, _) = self.super_mut().creator("apple", mi_apple);
   self.set_pos_Q(body, [-15.15, 0.31, 2.5, 1.0], QI);
@@ -446,7 +488,7 @@ pub fn create_tmbunny(&mut self) {
 pub fn create_c60_icosahedron(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
-      create_tm!(self,
+      cp!(self,
         [0.8, 0.6, 0.2, 0.8],
         [-4.0 + 2.0 * i as f64, 0.0, 2.0, 1.0],
         QI,
@@ -459,7 +501,7 @@ pub fn create_c60_icosahedron(&mut self) {
 pub fn create_c60_dodecahedron(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
-      create_tm!(self,
+      cp!(self,
         [0.8, 0.6, 0.2, 0.8],
         [-4.0 + 2.0 * i as f64, -4.0, 2.0, 1.0],
         QI,
@@ -472,7 +514,7 @@ pub fn create_c60_dodecahedron(&mut self) {
 pub fn create_c60_dodecahedron_center(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
-      create_tm!(self,
+      cp!(self,
         [0.8, 0.6, 0.2, 0.8],
         [-4.0 + 2.0 * i as f64, -2.0, 2.0, 1.0],
         QI,
@@ -485,7 +527,7 @@ pub fn create_c60_dodecahedron_center(&mut self) {
 pub fn create_c60_fullerene(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
-      create_tm!(self,
+      cp!(self,
         [0.8, 0.6, 0.2, 0.8],
         [-4.0 + 2.0 * i as f64, 4.0, 2.0, 1.0],
         QI,
@@ -498,7 +540,7 @@ pub fn create_c60_fullerene(&mut self) {
 pub fn create_c60_fullerene_center(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
-      create_tm!(self,
+      cp!(self,
         [0.8, 0.6, 0.2, 0.8],
         [-4.0 + 2.0 * i as f64, 2.0, 2.0, 1.0],
         QI,
@@ -508,7 +550,7 @@ pub fn create_c60_fullerene_center(&mut self) {
 }
 
 /// create polyhedron
-pub fn create_polyhedron(&mut self, i: usize, pos: dVector3) {
+pub fn create_polyhedron(&mut self, i: usize, p: dVector3) {
   let col = vec![
     [0.8, 0.6, 0.2, 0.8],
     [0.2, 0.8, 0.6, 0.8],
@@ -528,33 +570,33 @@ pub fn create_polyhedron(&mut self, i: usize, pos: dVector3) {
     dQuaternion::from_R(dMatrix3::from_euler_angles(0.0, -PIh, 0.0)), // +YZX
     dQuaternion::from_R(dMatrix3::from_euler_angles(0.0, 0.0, -PIh))]; // -X
   any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
-    let k = match i % self.n {
-    0 => create_tm!(self, c, pos, q[0], tm, tetra, 0),
-    1 => create_tm!(self, c, pos, q[1], tm, cube, 0),
-    2 => create_tm!(self, c, pos, q[2], tm, cube_center, 0),
-    3 => create_tm!(self, c, pos, q[1], tm, octa, 0),
-    4 => create_tm!(self, c, pos, q[1], tm, r_sphere, 0),
-    5 => create_tm!(self, c, pos, q[1], tm, cylinder, 0),
-    6 => create_tm!(self, c, pos, q[1], tm, capsule, 0),
-    7 => create_tm!(self, c, pos, q[1], tm, cone, 0),
-    8 => create_tm!(self, c, pos, q[0], tm, torus, 0),
-    9 => create_tm!(self, c, pos, q[4], tm, r_torus, 0),
-    10 => create_tm!(self, c, pos, q[1], tm, ring, 0),
-    11 => create_tm!(self, c, pos, q[1], tm, tube, 0),
-    12 => create_tm!(self, c, pos, q[3], tm, half_pipe, 0),
-    13 => create_tm!(self, c, pos, q[1], tm, pin, 0),
-    14 => create_tm!(self, c, pos, q[2], tm, revolution, 0),
-    15 => create_tm!(self, c, pos, q[4], tm, revolution, 1),
-    16 => create_tm!(self, c, pos, q[1], tm, icosahedron, 0),
-    17 => create_tm!(self, c, pos, q[1], tm, icosahedron, 1),
-    18 => create_tm!(self, c, pos, q[1], tm, dodecahedron, 0),
-    19 => create_tm!(self, c, pos, q[1], tm, dodecahedron, 1),
-    20 => create_tm!(self, c, pos, q[1], tm, dodecahedron_center, 0),
-    21 => create_tm!(self, c, pos, q[1], tm, dodecahedron_center, 1),
-    22 => create_tm!(self, c, pos, q[1], tm, c60, 0),
-    23 => create_tm!(self, c, pos, q[1], tm, c60, 1),
-    24 => create_tm!(self, c, pos, q[1], tm, c60_center, 0),
-    25 => create_tm!(self, c, pos, q[1], tm, c60_center, 1),
+    let k = match PE::from_usize(i % self.n).unwrap() {
+    ETetra => cp!(self, c, p, q[0], tm, tetra, 0),
+    ECube => cp!(self, c, p, q[1], tm, cube, 0),
+    ECubeCenter => cp!(self, c, p, q[2], tm, cube_center, 0),
+    EOcta => cp!(self, c, p, q[1], tm, octa, 0),
+    ERSphere => cp!(self, c, p, q[1], tm, r_sphere, 0),
+    ECylinder => cp!(self, c, p, q[1], tm, cylinder, 0),
+    ECapsule => cp!(self, c, p, q[1], tm, capsule, 0),
+    ECone => cp!(self, c, p, q[1], tm, cone, 0),
+    ETorus => cp!(self, c, p, q[0], tm, torus, 0),
+    ERTorus => cp!(self, c, p, q[4], tm, r_torus, 0),
+    ERing => cp!(self, c, p, q[1], tm, ring, 0),
+    ETube => cp!(self, c, p, q[1], tm, tube, 0),
+    EHalfPipe => cp!(self, c, p, q[3], tm, half_pipe, 0),
+    EPin => cp!(self, c, p, q[1], tm, pin, 0),
+    ERevolutionN0 => cp!(self, c, p, q[2], tm, revolution, 0),
+    ERevolutionN1 => cp!(self, c, p, q[4], tm, revolution, 1),
+    EIcosahedronN0 => cp!(self, c, p, q[1], tm, icosahedron, 0),
+    EIcosahedronN1 => cp!(self, c, p, q[1], tm, icosahedron, 1),
+    EDodecahedronN0 => cp!(self, c, p, q[1], tm, dodecahedron, 0),
+    EDodecahedronN1 => cp!(self, c, p, q[1], tm, dodecahedron, 1),
+    EDodecahedronCenterN0 => cp!(self, c, p, q[1], tm, dodecahedron_center, 0),
+    EDodecahedronCenterN1 => cp!(self, c, p, q[1], tm, dodecahedron_center, 1),
+    EC60N0 => cp!(self, c, p, q[1], tm, c60, 0),
+    EC60N1 => cp!(self, c, p, q[1], tm, c60, 1),
+    EC60CenterN0 => cp!(self, c, p, q[1], tm, c60_center, 0),
+    EC60CenterN1 => cp!(self, c, p, q[1], tm, c60_center, 1),
     _ => "nothing".to_string()
     };
     println!("polyhedron: {}", k);
@@ -602,28 +644,28 @@ fn start_callback(&mut self) {
   any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
     let r = 0.2;
     let tf = false;
-    tms!(tm, tetra, Tetra::<f64>, 0).setup(1.0, tf);
-    tms!(tm, cube, Cube::<f64>, 0).setup(r, tf);
-    tms!(tm, cube_center, CubeCenter::<f64>, 0).setup(r, tf);
-    tms!(tm, octa, Octa::<f64>, 0).setup(1.0, tf);
-    tms!(tm, r_sphere, RSphere::<f64>, 0).setup(r, 6, tf);
-    tms!(tm, cylinder, Cylinder::<f64>, 0).setup(r, 2.0, 6, tf);
-    tms!(tm, capsule, Capsule::<f64>, 0).setup(r, 2.0, 6, tf);
-    tms!(tm, cone, Cone::<f64>, 0).setup(r, 2.0, 6, tf);
-    tms!(tm, torus, Torus::<f64>, 0).setup(2.0, 0.5, 6, 6, tf);
-    tms!(tm, r_torus, RTorus::<f64>, 0).setup(2.0, 0.5, 12, 6, tf);
-    tms!(tm, ring, Ring::<f64>, 0).setup(2.0, 0.1, 0.4, 12, 6, tf);
-    tms!(tm, tube, Tube::<f64>, 0).setup(3.0, 2.8, 4.0, 6, tf);
+    tms!(tm, tetra, Tetra::<f64>, 0).setup(1.0, tf); // 0
+    tms!(tm, cube, Cube::<f64>, 0).setup(r, tf); // 1
+    tms!(tm, cube_center, CubeCenter::<f64>, 0).setup(r, tf); // 2
+    tms!(tm, octa, Octa::<f64>, 0).setup(1.0, tf); // 3
+    tms!(tm, r_sphere, RSphere::<f64>, 0).setup(r, 6, tf); // 4
+    tms!(tm, cylinder, Cylinder::<f64>, 0).setup(r, 2.0, 6, tf); // 5
+    tms!(tm, capsule, Capsule::<f64>, 0).setup(r, 2.0, 6, tf); // 6
+    tms!(tm, cone, Cone::<f64>, 0).setup(r, 2.0, 6, tf); // 7
+    tms!(tm, torus, Torus::<f64>, 0).setup(2.0, 0.5, 6, 6, tf); // 8
+    tms!(tm, r_torus, RTorus::<f64>, 0).setup(2.0, 0.5, 12, 6, tf); // 9
+    tms!(tm, ring, Ring::<f64>, 0).setup(2.0, 0.1, 0.4, 12, 6, tf); // 10
+    tms!(tm, tube, Tube::<f64>, 0).setup(3.0, 2.8, 4.0, 6, tf); // 11
     tms!(tm, half_pipe, HalfPipe::<f64>, 0)
-    .setup(3.141592654, 3.0, 2.8, 4.0, 6, tf);
-    tms!(tm, pin, polyhedron::pin::Pin::<f64>, 0).setup(r, 8, 6, tf);
+    .setup(3.141592654, 3.0, 2.8, 4.0, 6, tf); // 12
+    tms!(tm, pin, polyhedron::pin::Pin::<f64>, 0).setup(r, 8, 6, tf); // 13
     tms!(tm, revolution, Revolution::<f64>, 0)
     .setup(1.0, 2, 6, (true, true), |n, m| {
-      (n as f64 / (m - 1) as f64, 1.0) }, tf);
+      (n as f64 / (m - 1) as f64, 1.0) }, tf); // 14
     tms!(tm, revolution, Revolution::<f64>, 1)
     .setup_from_tbl(1.0, 2, 6, (true, true), &vec![
-      (0.0, 1.0), (0.2, 1.0), (0.4, 1.0), (0.6, 1.0), (0.8, 1.0)], tf);
-    for i in 0..2 {
+      (0.0, 1.0), (0.2, 1.0), (0.4, 1.0), (0.6, 1.0), (0.8, 1.0)], tf); // 15
+    for i in 0..2 { // (16, 17), (18, 19, 20, 21), (22, 23, 24, 25)
       let tf = i == 0; // true: on the one texture, false: texture each face
       tms!(tm, icosahedron, Icosahedron::<f64>, i).setup(r, tf);
       tms!(tm, dodecahedron, Dodecahedron::<f64>, i).setup(r, tf);
@@ -713,7 +755,7 @@ fn step_callback(&mut self, pause: i32) {
     // println!("{:?}", c);
     let u = match self.evo.get(&k) {
     None => self.u,
-    Some(&u) => u
+    Some(&u) => u as usize
     };
     self.create_polyhedron(u, c.try_into().unwrap());
   }
@@ -739,15 +781,16 @@ fn command_callback(&mut self, cmd: i32) {
       self.create_c60_fullerene_center();
     },
     '@' => {
-      self.u = (self.u + 1) % self.n;
+      let u: usize = self.rng.gen();
+      self.u = (self.u + u) % self.n;
       self.create_polyhedron(self.u, self.pos);
     },
-    'i' => {
-      self.i = !self.i;
-    },
-    'j' => {
-      self.j = !self.j;
-    },
+    'h' => { self.pos[1] -= 0.1; }, // left
+    'j' => { self.pos[0] += 0.1; }, // front
+    'k' => { self.pos[0] -= 0.1; }, // back
+    'l' => { self.pos[1] += 0.1; }, // right
+    'c' => { self.i = !self.i; }, // collision info
+    'x' => { self.j = !self.j; }, // collision info sub
     ' ' => {
       let k = "apple";
       match self.super_mut().find_mut(k.to_string()) {
@@ -826,20 +869,22 @@ fn main() {
   ODE::sim_loop(
     640, 480, // 800, 600,
     Some(Box::new(SimApp{
+      rng: rand::thread_rng(),
+      ped: vec![ERSphere, ETetra, ECubeCenter, EOcta, ECone],
       evo: vec![
-        ("r_sphere", 2),
-        ("cube_center", 7),
-        ("cone", 0),
-        ("tetra", 3),
-        ("octa", 13),
-        ("pin", 10),
-        ("ring", 16),
-        ("icosahedron", 20),
-        ("dodecahedron_center", 24),
-        ("c60_center", 4)
+        ("r_sphere", ETetra),
+        ("tetra", ECubeCenter),
+        ("cube_center", EOcta),
+        ("octa", ECone),
+        ("cone", EIcosahedronN0),
+        ("icosahedron", EPin),
+        ("pin", EDodecahedronCenterN0),
+        ("dodecahedron_center", ERing),
+        ("ring", EC60CenterN0),
+        ("c60_center", ERSphere)
       ].into_iter().map(|(s, u)| (s.to_string(), u)).into_iter().collect(),
       ebps: vec![], pos: [-2.0, 0.0, 6.0, 1.0], i: false, j: false,
-      t: time::Instant::now(), n: 26, u: 0, cnt: 0})),
+      t: time::Instant::now(), n: PE::End as usize, u: 0, cnt: 0})),
     b"./resources");
   ODE::close();
 
