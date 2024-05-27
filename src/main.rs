@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/c60/0.5.2")]
+#![doc(html_root_url = "https://docs.rs/c60/0.5.3")]
 /*
   cc-rs https://crates.io/crates/cc
   bindgen https://crates.io/crates/bindgen
@@ -64,6 +64,22 @@ const APP_HELP: &str = "
 
 #[derive(Debug, Clone, Copy)]
 #[repr(usize)]
+pub enum Phase {
+  PEmpty, PHold, PRelease, PDown, PEnd
+}
+pub use Phase::*;
+
+impl Phase {
+  pub fn from_usize(u: usize) -> Option<Self> {
+    const PS: [Phase; Phase::PEnd as usize] = [
+      PEmpty, PHold, PRelease, PDown];
+    if u >= Phase::PEnd as usize { return None; }
+    Some(PS[u])
+  }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(usize)]
 pub enum PE {
   ETetra, ECube, ECubeCenter, EOcta, ERSphere, ECylinder, ECapsule, ECone,
   ETorus, ERTorus, ERing, ETube, EHalfPipe, EPin,
@@ -98,8 +114,9 @@ macro_rules! cp {
   ($slf: expr, $col: expr, $pos: expr, $q: expr,
     $tm: ident, $hm: ident, $k: expr) => {{
     let (s, t) = tmg!($tm, $hm, $k);
-    let dm = if prec_eq_f(t.ph.vol, 1e-6, 0.0) { 1.0 } else { 1.0 / t.ph.vol };
-    let krp = Krp::new(true, true, true, 0.2, 0.3);
+    let d = 1e-2;
+    let dm = if prec_eq_f(t.ph.vol, 1e-6, 0.0) { d } else { d / t.ph.vol };
+    let krp = Krp::new(false, false, false, 0.2, 0.3); // set true later
     let mi_tm = MetaTriMesh::new(false, dm, &mut t.ph.tmv, krp, 0, $col);
     let k = $slf.ts(s.as_str());
     let (body, _, _) = $slf.super_mut().creator(k.as_str(), mi_tm);
@@ -110,7 +127,17 @@ macro_rules! cp {
 // pub use cp;
 
 pub struct SimApp {
-  /// rand::thread_rng()
+  /// phase
+  phase: Phase,
+  /// current hold key
+  current: String,
+  /// current hold pos
+  pos: dVector3,
+  /// next drop pe disp pos
+  nexpos: dVector3,
+  /// next drop pe
+  nexpe: PE,
+  /// next drop pe choose from rand::thread_rng()
   rng: rngs::ThreadRng,
   /// pre evolution drop
   ped: Vec<PE>,
@@ -118,8 +145,6 @@ pub struct SimApp {
   evo: HashMap<String, PE>,
   /// erase body pairs
   ebps: Vec<(dBodyID, dBodyID, String)>,
-  /// drop pos
-  pos: dVector3,
   /// collision info
   i: bool,
   /// collision info sub
@@ -149,6 +174,26 @@ _
   None => None,
   Some(caps) => Some(caps["o"].to_string())
   }
+}
+
+pub fn kgc(&mut self, s: &str) {
+  let rode = self.super_mut();
+  let Ok(o) = rode.find(s.to_string()) else { return; }; // get not mut
+  let krp = rode.get_krp_mut(o.geom());
+  krp.k = true;
+  krp.g = true;
+  krp.c = true;
+  let Ok(o) = rode.find_mut(s.to_string()) else { return; }; // re get mut
+  o.enable();
+}
+
+pub fn trans(&mut self) {
+  let ck = self.current.clone(); // clone to skip borrow
+  let q = self.pos.clone(); // clone to skip borrow
+  let rode = self.super_mut();
+  let Ok(o) = rode.find_mut(ck) else { return; };
+  let p = o.pos_();
+  for i in 0..4 { p[i] = q[i]; }
 }
 
 pub fn objs_mut(&mut self, f: bool, s: &str) {
@@ -488,11 +533,12 @@ pub fn create_tmbunny(&mut self) {
 pub fn create_c60_icosahedron(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
-      cp!(self,
+      let nk = cp!(self,
         [0.8, 0.6, 0.2, 0.8],
         [-4.0 + 2.0 * i as f64, 0.0, 2.0, 1.0],
         QI,
         tm, icosahedron, i);
+      self.kgc(&nk);
     });
   }
 }
@@ -501,11 +547,12 @@ pub fn create_c60_icosahedron(&mut self) {
 pub fn create_c60_dodecahedron(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
-      cp!(self,
+      let nk = cp!(self,
         [0.8, 0.6, 0.2, 0.8],
         [-4.0 + 2.0 * i as f64, -4.0, 2.0, 1.0],
         QI,
         tm, dodecahedron, i);
+      self.kgc(&nk);
     });
   }
 }
@@ -514,11 +561,12 @@ pub fn create_c60_dodecahedron(&mut self) {
 pub fn create_c60_dodecahedron_center(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
-      cp!(self,
+      let nk = cp!(self,
         [0.8, 0.6, 0.2, 0.8],
         [-4.0 + 2.0 * i as f64, -2.0, 2.0, 1.0],
         QI,
         tm, dodecahedron_center, i);
+      self.kgc(&nk);
     });
   }
 }
@@ -527,11 +575,12 @@ pub fn create_c60_dodecahedron_center(&mut self) {
 pub fn create_c60_fullerene(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
-      cp!(self,
+      let nk = cp!(self,
         [0.8, 0.6, 0.2, 0.8],
         [-4.0 + 2.0 * i as f64, 4.0, 2.0, 1.0],
         QI,
         tm, c60, i);
+      self.kgc(&nk);
     });
   }
 }
@@ -540,17 +589,18 @@ pub fn create_c60_fullerene(&mut self) {
 pub fn create_c60_fullerene_center(&mut self) {
   for i in 0..2 {
     any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
-      cp!(self,
+      let nk = cp!(self,
         [0.8, 0.6, 0.2, 0.8],
         [-4.0 + 2.0 * i as f64, 2.0, 2.0, 1.0],
         QI,
         tm, c60_center, i);
+      self.kgc(&nk);
     });
   }
 }
 
 /// create polyhedron
-pub fn create_polyhedron(&mut self, i: usize, p: dVector3) {
+pub fn create_polyhedron(&mut self, i: usize, p: dVector3) -> String {
   let col = vec![
     [0.8, 0.6, 0.2, 0.8],
     [0.2, 0.8, 0.6, 0.8],
@@ -569,8 +619,9 @@ pub fn create_polyhedron(&mut self, i: usize, p: dVector3) {
     dQuaternion::from_R(dMatrix3::from_euler_angles(-PIh, 0.0, 0.0)), // +Z
     dQuaternion::from_R(dMatrix3::from_euler_angles(0.0, -PIh, 0.0)), // +YZX
     dQuaternion::from_R(dMatrix3::from_euler_angles(0.0, 0.0, -PIh))]; // -X
+  let mut k: String = "".to_string(); // result
   any_pinned_with_bg_mut!(TriMeshManager<f64>, 0, |tm| {
-    let k = match PE::from_usize(i % self.n).unwrap() {
+    k = match PE::from_usize(i % self.n).unwrap() {
     ETetra => cp!(self, c, p, q[0], tm, tetra, 0),
     ECube => cp!(self, c, p, q[1], tm, cube, 0),
     ECubeCenter => cp!(self, c, p, q[2], tm, cube_center, 0),
@@ -601,6 +652,7 @@ pub fn create_polyhedron(&mut self, i: usize, p: dVector3) {
     };
     println!("polyhedron: {}", k);
   });
+  k
 }
 
 }
@@ -679,7 +731,7 @@ fn start_callback(&mut self) {
   self.create_c60_dodecahedron_center();
   self.create_c60_fullerene();
   self.create_c60_fullerene_center();
-  self.create_polyhedron(self.u, self.pos);
+  self.current = self.create_polyhedron(self.nexpe as usize, self.pos);
 
   self.super_mut().start_callback();
 }
@@ -757,7 +809,8 @@ fn step_callback(&mut self, pause: i32) {
     None => self.u,
     Some(&u) => u as usize
     };
-    self.create_polyhedron(u, c.try_into().unwrap());
+    let nk = self.create_polyhedron(u, c.try_into().unwrap()); // borrow temp
+    self.kgc(&nk);
   }
   self.ebps.clear();
 }
@@ -781,14 +834,17 @@ fn command_callback(&mut self, cmd: i32) {
       self.create_c60_fullerene_center();
     },
     '@' => {
+      let ck = self.current.clone(); // clone to skip borrow
+      self.kgc(&ck);
       let u: usize = self.rng.gen();
       self.u = (self.u + u) % self.n;
-      self.create_polyhedron(self.u, self.pos);
+      self.nexpe = PE::from_usize(self.u).unwrap();
+      self.current = self.create_polyhedron(self.nexpe as usize, self.pos);
     },
-    'h' => { self.pos[1] -= 0.1; }, // left
-    'j' => { self.pos[0] += 0.1; }, // front
-    'k' => { self.pos[0] -= 0.1; }, // back
-    'l' => { self.pos[1] += 0.1; }, // right
+    'h' => { self.pos[1] -= 0.1; self.trans(); }, // -Y left
+    'j' => { self.pos[0] += 0.1; self.trans(); }, // +X front
+    'k' => { self.pos[0] -= 0.1; self.trans(); }, // -X back
+    'l' => { self.pos[1] += 0.1; self.trans(); }, // +Y right
     'c' => { self.i = !self.i; }, // collision info
     'x' => { self.j = !self.j; }, // collision info sub
     ' ' => {
@@ -869,6 +925,9 @@ fn main() {
   ODE::sim_loop(
     640, 480, // 800, 600,
     Some(Box::new(SimApp{
+      phase: PHold, current: "".to_string(), pos: [-2.0, 0.0, 6.0, 1.0],
+      nexpos: [-20.0, 0.0, 6.0, 1.0],
+      nexpe: PE::ERSphere,
       rng: rand::thread_rng(),
       ped: vec![ERSphere, ETetra, ECubeCenter, EOcta, ECone],
       evo: vec![
@@ -883,7 +942,7 @@ fn main() {
         ("ring", EC60CenterN0),
         ("c60_center", ERSphere)
       ].into_iter().map(|(s, u)| (s.to_string(), u)).into_iter().collect(),
-      ebps: vec![], pos: [-2.0, 0.0, 6.0, 1.0], i: false, j: false,
+      ebps: vec![], i: false, j: false,
       t: time::Instant::now(), n: PE::End as usize, u: 0, cnt: 0})),
     b"./resources");
   ODE::close();
