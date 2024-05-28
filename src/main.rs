@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/c60/0.5.3")]
+#![doc(html_root_url = "https://docs.rs/c60/0.5.4")]
 /*
   cc-rs https://crates.io/crates/cc
   bindgen https://crates.io/crates/bindgen
@@ -62,7 +62,7 @@ const APP_HELP: &str = "
   'b': test mut (big ball)
   'a': test cmd (all info)";
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(usize)]
 pub enum Phase {
   PEmpty, PHold, PRelease, PDown, PEnd
@@ -133,12 +133,12 @@ pub struct SimApp {
   current: String,
   /// current hold pos
   pos: dVector3,
-  /// next drop pe disp pos
-  nexpos: dVector3,
-  /// next drop pe
-  nexpe: PE,
   /// next drop pe choose from rand::thread_rng()
   rng: rngs::ThreadRng,
+  /// next drop key
+  nexkey: String,
+  /// next drop disp pos
+  nexpos: dVector3,
   /// pre evolution drop
   ped: Vec<PE>,
   /// evolution &lt;key, next&gt;
@@ -187,6 +187,18 @@ pub fn kgc(&mut self, s: &str) {
   o.enable();
 }
 
+pub fn proc_key(&mut self, cmd: i32) {
+  if self.phase == PHold {
+    match cmd as u8 as char {
+    'h' => { self.pos[1] -= 0.1; self.trans(); }, // -Y left
+    'j' => { self.pos[0] += 0.1; self.trans(); }, // +X front
+    'k' => { self.pos[0] -= 0.1; self.trans(); }, // -X back
+    'l' => { self.pos[1] += 0.1; self.trans(); }, // +Y right
+    _ => {}
+    }
+  }
+}
+
 pub fn trans(&mut self) {
   let ck = self.current.clone(); // clone to skip borrow
   let q = self.pos.clone(); // clone to skip borrow
@@ -194,6 +206,27 @@ pub fn trans(&mut self) {
   let Ok(o) = rode.find_mut(ck) else { return; };
   let p = o.pos_();
   for i in 0..4 { p[i] = q[i]; }
+}
+
+pub fn set_next(&mut self) {
+  let u: usize = self.rng.gen();
+  let nexpe = self.ped[u % self.ped.len()];
+  self.nexkey = self.create_polyhedron(nexpe as usize, self.nexpos);
+}
+
+pub fn set_current(&mut self) {
+  if self.phase != PEmpty && self.phase != PDown { return; }
+  self.current = self.nexkey.clone();
+  self.trans();
+  self.set_next();
+  self.phase = PHold;
+}
+
+pub fn release_current(&mut self) {
+  if self.phase != PHold { return; }
+  let ck = self.current.clone(); // clone to skip borrow
+  self.kgc(&ck);
+  self.phase = PRelease;
 }
 
 pub fn objs_mut(&mut self, f: bool, s: &str) {
@@ -731,7 +764,10 @@ fn start_callback(&mut self) {
   self.create_c60_dodecahedron_center();
   self.create_c60_fullerene();
   self.create_c60_fullerene_center();
-  self.current = self.create_polyhedron(self.nexpe as usize, self.pos);
+
+  self.phase = PEmpty;
+  self.set_next();
+  self.set_current();
 
   self.super_mut().start_callback();
 }
@@ -739,22 +775,35 @@ fn start_callback(&mut self) {
 fn near_callback(&mut self, dat: *mut c_void, o1: dGeomID, o2: dGeomID) {
   self.super_mut().near_callback(dat, o1, o2);
 
-  let (info, info_sub) = (self.i, self.j); // tmp copy
+  let (ck, phase) = (self.current.clone(), self.phase); // clone to skip borrow
   let rode = self.super_mut(); // must re get mut (for get_contacts)
   if rode.is_space(o1) || rode.is_space(o2) { return; } // skip when space
-  let ground = rode.get_ground();
-  if ground == o1 || ground == o2 { return; } // vs ground
+  // check 'phase PDown' contains vs ground
   let _contactgroup = rode.get_contactgroup(); // now do nothing
   let n = rode.get_contacts(o1, o2);
   if n == 0 { return; } // skip no collision
-  let contacts = rode.ref_contacts(); // or rode.ref_contacts_mut()
-  let (b1p, _b1gp) = rode.get_ancestor(o1);
-  let (b2p, _b2gp) = rode.get_ancestor(o2);
+  let (b1p, b1gp) = rode.get_ancestor(o1);
+  let (b2p, b2gp) = rode.get_ancestor(o2);
   if b1p == b2p { return; } // may not arrive here
+  if phase == PRelease {
+    let b1 = if b1p != 0 as dBodyID { b1p } else { b1gp };
+    let b2 = if b2p != 0 as dBodyID { b2p } else { b2gp };
+    for b in [b1, b2].into_iter() {
+      if let Ok(o) = rode.get(b) {
+        if o.key == ck { println!("Down: {}", ck); self.phase = PDown; break; }
+      }
+    }
+  }
+
+  let (info, info_sub) = (self.i, self.j); // clone to skip borrow
+  let rode = self.super_mut(); // must re get mut (for get_contacts)
+  let ground = rode.get_ground();
+  if ground == o1 || ground == o2 { return; } // skip vs ground
+  let contacts = rode.ref_contacts(); // or rode.ref_contacts_mut()
   let skip = ["box", "p_", "plane", "slope", "apple", "ball", "roll",
     "fvp", "tmv", "tm"];
   let mut qpk: Vec<(dBodyID, dBodyID, String)> = vec![];
-  let _ids = rode.each_id(|key, id| {
+  let _ids = rode.each_id(|key, id| { // slow
     for skp in skip {
       let (mut slen, klen) = (skp.len(), key.len());
       if klen < slen { slen = klen; }
@@ -813,6 +862,7 @@ fn step_callback(&mut self, pause: i32) {
     self.kgc(&nk);
   }
   self.ebps.clear();
+  self.set_current();
 }
 
 fn command_callback(&mut self, cmd: i32) {
@@ -834,17 +884,12 @@ fn command_callback(&mut self, cmd: i32) {
       self.create_c60_fullerene_center();
     },
     '@' => {
-      let ck = self.current.clone(); // clone to skip borrow
-      self.kgc(&ck);
-      let u: usize = self.rng.gen();
-      self.u = (self.u + u) % self.n;
-      self.nexpe = PE::from_usize(self.u).unwrap();
-      self.current = self.create_polyhedron(self.nexpe as usize, self.pos);
+      self.release_current();
     },
-    'h' => { self.pos[1] -= 0.1; self.trans(); }, // -Y left
-    'j' => { self.pos[0] += 0.1; self.trans(); }, // +X front
-    'k' => { self.pos[0] -= 0.1; self.trans(); }, // -X back
-    'l' => { self.pos[1] += 0.1; self.trans(); }, // +Y right
+    'h' => { self.proc_key(cmd); }, // -Y left
+    'j' => { self.proc_key(cmd); }, // +X front
+    'k' => { self.proc_key(cmd); }, // -X back
+    'l' => { self.proc_key(cmd); }, // +Y right
     'c' => { self.i = !self.i; }, // collision info
     'x' => { self.j = !self.j; }, // collision info sub
     ' ' => {
@@ -925,10 +970,9 @@ fn main() {
   ODE::sim_loop(
     640, 480, // 800, 600,
     Some(Box::new(SimApp{
-      phase: PHold, current: "".to_string(), pos: [-2.0, 0.0, 6.0, 1.0],
-      nexpos: [-20.0, 0.0, 6.0, 1.0],
-      nexpe: PE::ERSphere,
+      phase: PEmpty, current: "".to_string(), pos: [-2.0, 0.0, 6.0, 1.0],
       rng: rand::thread_rng(),
+      nexkey: "".to_string(), nexpos: [-2.0, 0.0, 10.0, 1.0],
       ped: vec![ERSphere, ETetra, ECubeCenter, EOcta, ECone],
       evo: vec![
         ("r_sphere", ETetra),
